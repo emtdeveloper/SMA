@@ -1,0 +1,127 @@
+{
+    "records": {
+        "1": {
+            "name": "nagizaaz shaik",
+            "gender": "male",
+            "height": 175.0,
+            "weight": 70.0,
+            "bmi": 22.86,
+            "goal": "Muscle Gain",
+            "diet": "both",
+            "health_conditions": "no",
+            "progress_history": [
+                {
+                    "timestamp": "2025-02-28 22:21:54",
+                    "weight": 69.0,
+                    "bmi": 22.53
+                },
+                {
+                    "timestamp": "2025-02-28 22:53:00",
+                    "old_weight": 75.0,
+                    "new_weight": 70.0,
+                    "old_bmi": 24.49,
+                    "new_bmi": 22.86
+                }
+            ],
+            "health_status": "Healthy"
+        },
+        "2": {
+            "name": "darshan jigala",
+            "gender": "male",
+            "height": 180.0,
+            "weight": 70.0,
+            "bmi": 21.6,
+            "goal": "Muscle Gain",
+            "diet": "both",
+            "health_conditions": "no"
+        },
+        "3": {
+            "name": "neelima botla",
+            "gender": "female",
+            "height": 160.0,
+            "weight": 74.89999999999995,
+            "bmi": 29.26,
+            "goal": "Weight Loss",
+            "diet": "both",
+            "health_conditions": "no",
+            "progress_history": [
+                {
+                    "timestamp": "2025-03-24 12:33:20",
+                    "weight": 74.89999999999995,
+                    "bmi": 29.26
+                }
+            ],
+            "health_status": "Overweight"
+        },
+        "4": {
+            "name": "Nikhil reddy",
+            "gender": "Male",
+            "height": 160.0,
+            "weight": 85.0,
+            "bmi": 33.2,
+            "goal": "Weight Loss",
+            "diet": "Both",
+            "health_conditions": "None",
+            "health_status": "Unhealthy",
+            "progress_history": []
+        },
+        "5": {
+            "name": "Nikita anakala",
+            "gender": "Female",
+            "height": 160.0,
+            "weight": 75.0,
+            "bmi": 29.3,
+            "goal": "Weight Loss",
+            "diet": "Both",
+            "health_conditions": "None",
+            "health_status": "Unhealthy",
+            "progress_history": [],
+            "food_preferences": []
+        },
+        "6": {
+            "name": "hi bye",
+            "gender": "other",
+            "height": 179.0,
+            "weight": 75.0,
+            "bmi": 23.41,
+            "goal": "Not specified",
+            "diet": "both",
+            "health_conditions": "no",
+            "health_status": "Healthy",
+            "progress_history": [],
+            "food_preferences": []
+        },
+        "7": {
+            "name": "arun tushar",
+            "gender": "male",
+            "height": 180.0,
+            "weight": 70.0,
+            "bmi": 21.6,
+            "goal": "muscle gain",
+            "diet": "both",
+            "health_conditions": "no",
+            "health_status": "Healthy",
+            "progress_history": [],
+            "food_preferences": []
+        },
+        "8": {
+            "name": "t r",
+            "gender": "male",
+            "height": 165.0,
+            "weight": 70.0,
+            "bmi": 25.71,
+            "goal": "Muscle Gain",
+            "diet": "Both",
+            "health_conditions": "None",
+            "progress_history": [
+                {
+                    "timestamp": "2025-03-24 00:28:24",
+                    "weight": 70.0,
+                    "bmi": 25.71
+                }
+            ],
+            "health_status": "Overweight"
+        }
+    },
+    "next_record_id": 8
+}
