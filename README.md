@@ -47,7 +47,5 @@ The **Smart Meal & Activity Planner (SMA)** is a user-centric web application bu
 - **Matplotlib**: Visualization of nutritional data
 - **JSON**: Simple and effective data storage
 
----
 
-## 🗂️ Repository Structure
 
