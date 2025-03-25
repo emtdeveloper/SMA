@@ -3,9 +3,9 @@
         "1": {
             "name": "nagizaaz shaik",
             "gender": "male",
-            "height": 175.0,
+            "height": 174.92000000000007,
             "weight": 70.0,
-            "bmi": 22.86,
+            "bmi": 22.88,
             "goal": "Muscle Gain",
             "diet": "both",
             "health_conditions": "no",
@@ -23,7 +23,11 @@
                     "new_bmi": 22.86
                 }
             ],
-            "health_status": "Healthy"
+            "health_status": "Healthy",
+            "age": 30,
+            "activity_level": "Very Active",
+            "allergies": "None",
+            "preferred_cuisines": ""
         },
         "2": {
             "name": "darshan jigala",
@@ -121,6 +125,45 @@
                 }
             ],
             "health_status": "Overweight"
+        },
+        "9": {
+            "name": "arun selvin kumar vijayakumar",
+            "gender": "male",
+            "age": 30,
+            "activity_level": "Sedentary",
+            "height": 170.0,
+            "weight": 70.0,
+            "bmi": 24.22,
+            "goal": "Weight Loss",
+            "diet": "Vegetarian",
+            "health_conditions": "None",
+            "food_preferences": [],
+            "progress_history": [
+                {
+                    "timestamp": "2025-03-24 22:38:44",
+                    "weight": 70.0,
+                    "bmi": 24.22
+                }
+            ],
+            "health_status": "Healthy"
+        },
+        "10": {
+            "name": "arun selvin kumar vijayakumar",
+            "gender": "male",
+            "height": 170.0,
+            "weight": 70.0,
+            "bmi": 24.22,
+            "goal": "Weight Loss",
+            "diet": "Vegetarian",
+            "health_conditions": "",
+            "progress_history": [
+                {
+                    "timestamp": "2025-03-24 22:46:31",
+                    "weight": 70.0,
+                    "bmi": 24.22
+                }
+            ],
+            "health_status": "Healthy"
         }
     },
     "next_record_id": 8
