@@ -40,7 +40,7 @@ The **Smart Meal & Activity Planner (SMA)** is a user-centric web application bu
 
 ## 🛠️ Tech Stack
 
-- **Python**: Main programming language
+- **Python**: Main programming language for the project
 - **Streamlit**: Front-end interactive UI
 - **Pandas**: Data manipulation & processing
 - **Scikit-Learn**: Machine learning functions & cosine similarity
@@ -86,3 +86,39 @@ streamlit run app.py
 Go to the URL displayed in your terminal (usually http://localhost:8501) to view the app
 
 
+## 📋 Prerequisites
+
+Make sure you have **Python 3.8 or higher** installed.
+
+Install the required Python libraries by running:
+
+```bash
+pip install -r requirements.txt
+```
+## ▶️ How to Run
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/emtdeveloper/SMA.git
+cd SMA
+```
+
+2. Install dependencies
+Make sure you have Python 3.8 or higher installed. Then, install the required libraries:
+
+```bash
+pip install -r requirements.txt
+```
+⚠️ If requirements.txt is missing, install manually:
+
+```bash
+pip install streamlit pandas numpy scikit-learn
+```
+3. Launch the Streamlit app
+```bash
+streamlit run app.py
+```
+
+4. Open your browser
+Go to the URL displayed in your terminal (usually http://localhost:8501) to view the app
