@@ -40,7 +40,7 @@ The **Smart Meal & Activity Planner (SMA)** is a user-centric web application bu
 
 ## 🛠️ Tech Stack
 
-- **Python**: Main programming language
+- **Python**: Main programming language for the project
 - **Streamlit**: Front-end interactive UI
 - **Pandas**: Data manipulation & processing
 - **Scikit-Learn**: Machine learning functions & cosine similarity
