@@ -122,3 +122,4 @@ streamlit run app.py
 
 4. Open your browser
 Go to the URL displayed in your terminal (usually http://localhost:8501) to view the app
+local host
