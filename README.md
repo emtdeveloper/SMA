@@ -58,7 +58,6 @@ Install the required Python libraries by running:
 ```bash
 pip install -r requirements.txt
 ```
-
 ## ▶️ How to Run
 
 ### 1. Clone the repository
