@@ -25,23 +25,38 @@ def display_existing_profile():
     
     # User information section
     st.subheader("Profile Information")
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         st.markdown(f"**Name:** {user_data.get('name', 'N/A')}")
         st.markdown(f"**Gender:** {user_data.get('gender', 'N/A').capitalize()}")
+        st.markdown(f"**Age:** {user_data.get('age', 'N/A')}")
         st.markdown(f"**Height:** {user_data.get('height', 0)} cm")
         st.markdown(f"**Weight:** {user_data.get('weight', 0)} kg")
-        st.markdown(f"**Age:** {user_data.get('age', 'N/A')}")
-        st.markdown(f"**Activity Level:** {user_data.get('activity_level', 'N/A')}")    
     
     with col2:
+        st.markdown(f"**Activity Level:** {user_data.get('activity_level', 'N/A')}")
         st.markdown(f"**Diet Preference:** {user_data.get('diet', 'N/A').capitalize()}")
         st.markdown(f"**Goal:** {user_data.get('goal', 'N/A')}")
-        st.markdown(f"**Health Conditions:** {user_data.get('health_conditions', 'None')}")
         st.markdown(f"**Health Status:** {user_data.get('health_status', 'N/A')}")
-        st.markdown(f"**Allergies:** {user_data.get('allergies', 'None')}")
-        st.markdown(f"**Preferred Cuisines:** {user_data.get('preferred_cuisines', 'Any')}")
+        st.markdown(f"**Health Conditions:** {user_data.get('health_conditions', 'None')}")
+    
+    with col3:
+        # Display allergies
+        allergies = user_data.get('allergies', [])
+        if allergies:
+            allergies_str = ", ".join(allergies)
+            st.markdown(f"**Allergies:** {allergies_str}")
+        else:
+            st.markdown("**Allergies:** None")
+        
+        # Display preferred cuisines
+        cuisines = user_data.get('preferred_cuisines', [])
+        if cuisines:
+            cuisines_str = ", ".join(cuisines)
+            st.markdown(f"**Preferred Cuisines:** {cuisines_str}")
+        else:
+            st.markdown("**Preferred Cuisines:** None specified")
     
     # Display BMI chart
     st.subheader("Body Mass Index (BMI)")
@@ -120,7 +135,7 @@ def display_existing_profile():
     
     with st.form(key="edit_profile_form"):
         # Split form into columns for better layout
-        edit_col1, edit_col2 = st.columns(2)
+        edit_col1, edit_col2, edit_col3 = st.columns(3)
         
         with edit_col1:
             name_parts = user_data.get('name', '').split()
@@ -136,6 +151,13 @@ def display_existing_profile():
                 index=["male", "female", "other"].index(user_data.get('gender', 'male').lower())
             )
             
+            edit_age = st.number_input(
+                "Age",
+                min_value=10,
+                max_value=100,
+                value=int(user_data.get('age', 30))
+            )
+            
             edit_height = st.number_input(
                 "Height (cm)",
                 min_value=50.0,
@@ -144,30 +166,20 @@ def display_existing_profile():
             )
         
         with edit_col2:
-            edit_age = st.number_input(
-                "Age",
-                min_value=10,
-                max_value=100,
-                value=user_data.get('age', 25)
+            edit_weight = st.number_input(
+                "Weight (kg)",
+                min_value=20.0,
+                max_value=250.0,
+                value=float(user_data.get('weight', 70))
             )
-
-            edit_activity_level = st.selectbox(
+            
+            edit_activity = st.selectbox(
                 "Activity Level",
                 options=["Sedentary", "Lightly Active", "Moderately Active", "Very Active"],
-                index=["Sedentary", "Lightly Active", "Moderately Active", "Very Active"].index(
-                    user_data.get('activity_level', 'Sedentary')
-                )
+                index=["sedentary", "lightly active", "moderately active", "very active"].index(user_data.get('activity_level', 'moderately active').lower())
+                if user_data.get('activity_level', 'moderately active').lower() in ["sedentary", "lightly active", "moderately active", "very active"] else 2
             )
-
-            edit_allergies = st.text_input(
-                "Allergies (comma-separated)",
-                value=user_data.get('allergies', 'None')
-            )
-
-            edit_preferred_cuisines = st.text_input(
-                "Preferred Cuisines (comma-separated, optional)",
-                value=user_data.get('preferred_cuisines', '')
-            )
+            
             edit_diet = st.selectbox(
                 "Diet Preference",
                 options=["Vegetarian", "Non-Vegetarian", "Both", "Vegan"],
@@ -181,6 +193,27 @@ def display_existing_profile():
                 index=["weight loss", "weight gain", "maintain weight", "muscle gain", "not specified"].index(user_data.get('goal', 'not specified').lower())
                 if user_data.get('goal', 'not specified').lower() in ["weight loss", "weight gain", "maintain weight", "muscle gain", "not specified"] else 4
             )
+        
+        with edit_col3:
+            # Get current allergies and join them with commas for the text input
+            current_allergies = user_data.get('allergies', [])
+            allergies_str = ", ".join(current_allergies) if current_allergies else ""
+            
+            edit_allergies = st.text_input(
+                "Food Allergies (comma-separated)",
+                value=allergies_str,
+                placeholder="e.g., nuts, dairy, shellfish"
+            )
+            
+            # In a real app, you'd get these from a database or API
+            cuisine_options = ["Italian", "Mexican", "Chinese", "Indian", "Japanese", 
+                               "Mediterranean", "Thai", "American", "French", "Greek"]
+            
+            edit_cuisines = st.multiselect(
+                "Preferred Cuisines (optional)",
+                options=cuisine_options,
+                default=user_data.get('preferred_cuisines', [])
+            )
             
             edit_health = st.text_area(
                 "Any health conditions? (or 'None')",
@@ -190,19 +223,23 @@ def display_existing_profile():
         update_profile_button = st.form_submit_button(label="Update Profile")
         
         if update_profile_button:
+            # Process allergies list
+            allergies_list = [a.strip() for a in edit_allergies.split(',')] if edit_allergies else []
+            
             # Create updated data dictionary
             updated_data = {
-                    "name": f"{edit_first_name.strip().lower()} {edit_last_name.strip().lower()}",
-                    "gender": edit_gender.lower(),
-                    "height": float(edit_height),
-                    "diet": edit_diet.lower(),
-                    "goal": edit_goal,
-                    "health_conditions": edit_health,
-                    "age": edit_age,
-                    "activity_level": edit_activity_level,
-                    "allergies": edit_allergies,
-                    "preferred_cuisines": edit_preferred_cuisines
-                }
+                "name": f"{edit_first_name.strip().lower()} {edit_last_name.strip().lower()}",
+                "gender": edit_gender.lower(),
+                "age": int(edit_age),
+                "height": float(edit_height),
+                "weight": float(edit_weight),
+                "activity_level": edit_activity.lower(),
+                "diet": edit_diet.lower(),
+                "goal": edit_goal,
+                "allergies": allergies_list,
+                "preferred_cuisines": edit_cuisines,
+                "health_conditions": edit_health
+            }
             
             success, message = update_user(user_id, updated_data)
             if success:
@@ -234,14 +271,13 @@ def display_existing_profile():
         with delete_col2:
             if st.button("No, Cancel", key="cancel_delete_button"):
                 st.info("Profile deletion canceled.")
-    st.session_state['user_profile'] = user_data
 
 def create_profile():
     st.subheader("Create New Profile")
     
     with st.form(key="create_profile_form"):
         # Split form into columns for better layout
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         
         with col1:
             first_name = st.text_input("First Name")
@@ -252,6 +288,13 @@ def create_profile():
                 options=["Male", "Female", "Other"]
             )
             
+            age = st.number_input(
+                "Age",
+                min_value=10,
+                max_value=100,
+                value=30
+            )
+            
             height = st.number_input(
                 "Height in cm",
                 min_value=50.0,
@@ -260,32 +303,17 @@ def create_profile():
             )
         
         with col2:
-            age = st.number_input(
-                    "Age",
-                    min_value=10,
-                    max_value=100,
-                    value=25
-                )
-
-            activity_level = st.selectbox(
-                    "Activity Level",
-                    options=["Sedentary", "Lightly Active", "Moderately Active", "Very Active"]
-                )
-
-            allergies = st.text_input(
-                    "Allergies (comma-separated, or 'None')",
-                    value="None"
-                )
-
-            preferred_cuisines = st.text_input(
-                    "Preferred Cuisines (comma-separated, optional)",
-                    value=""
-                )
             weight = st.number_input(
                 "Weight in kg",
                 min_value=20.0,
                 max_value=250.0,
                 value=70.0
+            )
+            
+            activity_level = st.selectbox(
+                "Activity Level",
+                options=["Sedentary", "Lightly Active", "Moderately Active", "Very Active"],
+                index=2  # Default to Moderately Active
             )
             
             diet_preference = st.selectbox(
@@ -298,6 +326,21 @@ def create_profile():
                 options=["Weight Loss", "Weight Gain", "Maintain Weight", "Muscle Gain", "Not specified"]
             )
             
+        with col3:
+            allergies = st.text_input(
+                "Food Allergies (comma-separated)",
+                placeholder="e.g., nuts, dairy, shellfish"
+            )
+            
+            # In a real app, you'd get these from a database or API
+            cuisine_options = ["Italian", "Mexican", "Chinese", "Indian", "Japanese", 
+                               "Mediterranean", "Thai", "American", "French", "Greek"]
+            
+            preferred_cuisines = st.multiselect(
+                "Preferred Cuisines (optional)",
+                options=cuisine_options
+            )
+            
             health_conditions = st.text_area(
                 "Any health conditions? (or 'None')"
             )
@@ -308,13 +351,13 @@ def create_profile():
             if not first_name or not last_name:
                 st.error("Please enter both first and last name.")
             else:
+                # Convert allergies string to list
+                allergies_list = [a.strip() for a in allergies.split(',')] if allergies else []
+                
                 success, message, user_id = create_new_user(
-                    first_name, last_name, gender, height, weight,
-                    diet_preference, goal, health_conditions,
-                    age=age,
-                    activity_level=activity_level,
-                    allergies=allergies,
-                    preferred_cuisines=preferred_cuisines
+                    first_name, last_name, gender, age, height, weight,
+                    diet_preference, goal, activity_level,
+                    allergies_list, preferred_cuisines, health_conditions
                 )
                 
                 if success:
@@ -331,7 +374,6 @@ def create_profile():
                     st.rerun()
                 else:
                     st.error(message)
-    st.session_state['user_profile'] = user_data                
 
 if __name__ == "__main__":
     main()
