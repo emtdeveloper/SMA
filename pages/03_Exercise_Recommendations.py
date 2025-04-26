@@ -147,17 +147,38 @@ def display_exercise_recommendations(user_data):
     # Create tabs for days of the week
     day_tabs = st.tabs(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"])
     
+    # Organize strength exercises by muscle group first to ensure diversity
+    upper_body_exercises = []
+    core_exercises = []
+    lower_body_exercises = []
+    
+    if 'Strength' in exercise_recommendations and exercise_recommendations['Strength']:
+        for exercise in exercise_recommendations['Strength']:
+            main_muscle = exercise['main_muscle'].lower() if exercise['main_muscle'] else ''
+            
+            if any(muscle in main_muscle for muscle in ['shoulder', 'chest', 'back', 'arm', 'deltoid', 'pectoralis', 'trapezius', 'bicep', 'tricep']):
+                upper_body_exercises.append(exercise)
+            elif any(muscle in main_muscle for muscle in ['hip', 'thigh', 'leg', 'glute', 'calf', 'quadricep', 'hamstring']):
+                lower_body_exercises.append(exercise)
+            elif any(muscle in main_muscle for muscle in ['abs', 'core', 'waist', 'erector']):
+                core_exercises.append(exercise)
+            else:
+                # Default to upper body if unsure
+                upper_body_exercises.append(exercise)
+    
     # Assign different exercise types to different days based on user goal
-    with day_tabs[0]:  # Monday
-        st.markdown("### Strength Focus")
-        if 'Strength' in exercise_recommendations and exercise_recommendations['Strength']:
-            for i, exercise in enumerate(exercise_recommendations['Strength'][:3]):
+    with day_tabs[0]:  # Monday - Upper Body
+        st.markdown("### Upper Body Strength")
+        if upper_body_exercises:
+            # Limit to 3 exercises for the day
+            display_exercises = upper_body_exercises[:3]
+            for i, exercise in enumerate(display_exercises):
                 with st.expander(f"{i+1}. {exercise['name']} - {exercise['main_muscle']}"):
                     display_exercise_content(exercise)
         else:
-            st.info("No strength exercises available.")
+            st.info("No upper body exercises available.")
     
-    with day_tabs[1]:  # Tuesday
+    with day_tabs[1]:  # Tuesday - Cardio
         st.markdown("### Cardio Focus")
         if 'Cardio' in exercise_recommendations and exercise_recommendations['Cardio']:
             for i, exercise in enumerate(exercise_recommendations['Cardio'][:3]):
@@ -166,33 +187,53 @@ def display_exercise_recommendations(user_data):
         else:
             st.info("No cardio exercises available.")
     
-    with day_tabs[2]:  # Wednesday
-        st.markdown("### Flexibility & Recovery")
-        if 'Flexibility' in exercise_recommendations and exercise_recommendations['Flexibility']:
-            for i, exercise in enumerate(exercise_recommendations['Flexibility'][:3]):
+    with day_tabs[2]:  # Wednesday - Core
+        st.markdown("### Core Strength & Flexibility")
+        
+        # First display core exercises
+        core_display_count = min(2, len(core_exercises))
+        if core_display_count > 0:
+            for i, exercise in enumerate(core_exercises[:core_display_count]):
+                with st.expander(f"{i+1}. {exercise['name']} - {exercise['main_muscle']}"):
+                    display_exercise_content(exercise)
+        
+        # Then add some flexibility exercises
+        flex_display_count = 3 - core_display_count
+        if 'Flexibility' in exercise_recommendations and exercise_recommendations['Flexibility'] and flex_display_count > 0:
+            for i, exercise in enumerate(exercise_recommendations['Flexibility'][:flex_display_count]):
+                with st.expander(f"{i+1 + core_display_count}. {exercise['name']} - {exercise['main_muscle']}"):
+                    display_exercise_content(exercise)
+        
+        if core_display_count == 0 and flex_display_count == 0:
+            st.info("No core or flexibility exercises available.")
+    
+    with day_tabs[3]:  # Thursday - Lower Body
+        st.markdown("### Lower Body Strength")
+        if lower_body_exercises:
+            # Limit to 3 exercises for the day
+            display_exercises = lower_body_exercises[:3]
+            for i, exercise in enumerate(display_exercises):
                 with st.expander(f"{i+1}. {exercise['name']} - {exercise['main_muscle']}"):
                     display_exercise_content(exercise)
         else:
-            st.info("No flexibility exercises available.")
+            st.info("No lower body exercises available.")
     
-    with day_tabs[3]:  # Thursday
-        st.markdown("### Strength Focus")
-        if 'Strength' in exercise_recommendations and exercise_recommendations['Strength']:
-            for i, exercise in enumerate(exercise_recommendations['Strength'][3:6]):
-                with st.expander(f"{i+1}. {exercise['name']} - {exercise['main_muscle']}"):
-                    display_exercise_content(exercise)
-        else:
-            st.info("No strength exercises available.")
-    
-    with day_tabs[4]:  # Friday
-        st.markdown("### Mixed Workout")
+    with day_tabs[4]:  # Friday - Full Body Circuit
+        st.markdown("### Full Body Circuit")
         exercises = []
-        if 'Strength' in exercise_recommendations and exercise_recommendations['Strength']:
-            exercises.append(exercise_recommendations['Strength'][0])
+        
+        # Try to get one from each category (upper, lower, core, cardio)
+        if upper_body_exercises:
+            exercises.append(upper_body_exercises[0])
+        if lower_body_exercises:
+            exercises.append(lower_body_exercises[0])
+        if core_exercises:
+            exercises.append(core_exercises[0])
         if 'Cardio' in exercise_recommendations and exercise_recommendations['Cardio']:
             exercises.append(exercise_recommendations['Cardio'][0])
-        if 'Flexibility' in exercise_recommendations and exercise_recommendations['Flexibility']:
-            exercises.append(exercise_recommendations['Flexibility'][0])
+        
+        # Limit to 4 max exercises
+        exercises = exercises[:4]
         
         for i, exercise in enumerate(exercises):
             with st.expander(f"{i+1}. {exercise['name']} - {exercise['main_muscle']}"):
