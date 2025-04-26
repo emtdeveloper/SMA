@@ -1,8 +1,7 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 from utils.data_processing import load_food_data, filter_foods_by_preference, calculate_calorie_needs, calculate_macros
-from utils.recommendations import generate_meal_plan, recommend_foods_by_goal
+from utils.recommendations import  recommend_foods_by_goal,generate_meal_plan_with_cosine_similarity
 from utils.user_management import get_user
 from utils.visualization import create_macronutrient_chart, create_meal_plan_calories_chart, create_nutrient_comparison_chart
 
@@ -10,63 +9,9 @@ def main():
     st.title("🍽️ Meal Planner")
     
     # Check if user is logged in
-    if not st.session_state.current_user:
-        st.warning("Please create or select a profile to generate personalized meal plans.")
-        st.info("Go to the Profile page to create or select a profile.")
-        
-        # Show demo version with limited functionality
-        st.subheader("Demo Version")
-        st.markdown("Try out the meal planner with default settings:")
-        
-        with st.form(key="demo_meal_plan_form"):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                days = st.slider("Number of Days", min_value=1, max_value=14, value=3)
-                meals_per_day = st.slider("Meals per Day", min_value=3, max_value=6, value=3)
-            
-            with col2:
-                diet_pref = st.selectbox(
-                    "Diet Preference",
-                    options=["Both", "Vegetarian", "Vegan", "Non-Vegetarian"],
-                    index=0
-                )
-                
-                goal = st.selectbox(
-                    "Goal",
-                    options=["Weight Loss", "Weight Gain", "Maintain Weight", "Muscle Gain"],
-                    index=0
-                )
-            
-            generate_button = st.form_submit_button(label="Generate Demo Meal Plan")
-            
-            if generate_button:
-                # Create a default user profile
-                default_user = {
-                    "name": "Demo User",
-                    "gender": "male",
-                    "height": 170,
-                    "weight": 70,
-                    "diet": diet_pref.lower(),
-                    "goal": goal
-                }
-                
-                # Generate meal plan
-                with st.spinner("Generating your meal plan..."):
-                    meal_plan = generate_meal_plan(
-                        default_user,
-                        st.session_state.food_data,
-                        days=days,
-                        meals_per_day=meals_per_day
-                    )
-                
-                if "error" in meal_plan:
-                    st.error(meal_plan["error"])
-                else:
-                    display_meal_plan(meal_plan)
-        
+    if 'current_user' not in st.session_state or st.session_state.current_user is None:
+        st.error("Please log in to access the meal planner.")
         return
-    
     # Get user data
     user_id = st.session_state.current_user
     user_data = get_user(user_id)
@@ -111,58 +56,71 @@ def main():
     
     with st.form(key="meal_plan_form"):
         col1, col2 = st.columns(2)
-        
-        with col1:
-            days = st.slider("Number of Days", min_value=1, max_value=30, value=7)
-            meals_per_day = st.slider("Meals per Day", min_value=3, max_value=6, value=3)
-        
-        with col2:
-            # Allow user to override diet preference
-            diet_pref = st.selectbox(
-                "Diet Preference",
-                options=["Use Profile Setting", "Both", "Vegetarian", "Vegan", "Non-Vegetarian"],
-                index=0
-            )
-            
-            # Allow user to override goal
-            goal_override = st.selectbox(
-                "Goal",
-                options=["Use Profile Setting", "Weight Loss", "Weight Gain", "Maintain Weight", "Muscle Gain"],
-                index=0
-            )
+        days = st.slider("Number of Days", min_value=1, max_value=30, value=7)
+        meals_per_day = st.slider("Meals per Day", min_value=3, max_value=6, value=3)
+    
+           
         
         generate_button = st.form_submit_button(label="Generate Meal Plan")
         
         if generate_button:
-            # Use profile settings or overrides
-            if diet_pref == "Use Profile Setting":
-                diet_preference = user_data.get('diet', 'both')
-            else:
-                diet_preference = diet_pref.lower()
-            
-            if goal_override == "Use Profile Setting":
-                goal_setting = user_data.get('goal', 'Maintain Weight')
-            else:
-                goal_setting = goal_override
-            
+        
             # Update user data with overrides
             user_data_copy = user_data.copy()
-            user_data_copy['diet'] = diet_preference
-            user_data_copy['goal'] = goal_setting
             
             # Generate meal plan
             with st.spinner("Generating your personalized meal plan..."):
-                meal_plan = generate_meal_plan(
+                st.session_state.current_meal_plan = generate_meal_plan_with_cosine_similarity(
                     user_data_copy,
                     st.session_state.food_data,
                     days=days,
                     meals_per_day=meals_per_day
                 )
+                
+    # Display meal plan outside the form
+    if 'current_meal_plan' in st.session_state:
+        meal_plan = st.session_state.current_meal_plan
+        
+        if "error" in meal_plan:
+            st.error(meal_plan["error"])
+        else:
+            display_meal_plan(meal_plan)
             
-            if "error" in meal_plan:
-                st.error(meal_plan["error"])
-            else:
-                display_meal_plan(meal_plan)
+            # Add download buttons outside the form and display_meal_plan function
+            st.subheader("Save Your Meal Plan")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                # Create text data for download
+                plan_text = convert_plan_to_text(meal_plan)
+                
+                st.download_button(
+                    label="Download as Text",
+                    data=plan_text,
+                    file_name="meal_plan.txt",
+                    mime="text/plain"
+                )
+            
+            with col2:
+                # Create shopping list for download
+                shopping_list = create_shopping_list(meal_plan)
+                
+                st.download_button(
+                    label="Download Shopping List",
+                    data=shopping_list,
+                    file_name="shopping_list.txt",
+                    mime="text/plain"
+                )
+            
+            with col3:
+                if st.button("Print Meal Plan"):
+                    st.info("Use your browser's print function (Ctrl+P or ⌘+P) to print this page.")
+                    
+            # Display shopping list in a collapsible section
+            with st.expander("View Shopping List"):
+                st.markdown("### Shopping List for Your Meal Plan")
+                st.text(shopping_list)
     
     # Food recommendations based on goal
     st.subheader("Recommended Foods Based on Your Goal")
@@ -259,7 +217,7 @@ def display_meal_plan(meal_plan):
             
             # Display meals
             for meal in day['meals']:
-                with st.expander(f"{meal['meal_name']} - {meal['calories']:.0f} kcal"):
+                with st.expander(f"{meal['meal_name']}  kcal"):
                     # Create a table for the foods in this meal
                     if meal['foods']:
                         food_data = []
@@ -280,36 +238,7 @@ def display_meal_plan(meal_plan):
                         st.table(food_df)
                     else:
                         st.info("No foods selected for this meal.")
-    
-    # Option to save or print the meal plan
-    st.subheader("Save Your Meal Plan")
-    
-    col1, col2 = st.columns(2)
-    
-    #Commented by tushar because of error
-    with col1:
-        st.markdown("Download Meal Plan")
-        # st.download_button(
-        #     label="Download as Text",
-        #     data=convert_plan_to_text(meal_plan),
-        #     file_name="meal_plan.txt",
-        #     mime="text/plain"
-        # )
-    
-    with col2:
-        st.markdown("Print Meal Plan")
-        # if st.button("Print Meal Plan"):
-        #     st.markdown(
-        #         """
-        #         <script>
-        #             function printDiv() {
-        #                 window.print();
-        #             }
-        #         </script>
-        #         <button onclick="printDiv()">Print</button>
-        #         """,
-        #         unsafe_allow_html=True
-        #     )
+    # Meal plan display contains only visualization, no download buttons to avoid form issues
 
 def convert_plan_to_text(meal_plan):
     """
@@ -333,7 +262,7 @@ def convert_plan_to_text(meal_plan):
         text += "\n"
         
         for meal in day['meals']:
-            text += f"{meal['meal_name']} - {meal['calories']:.0f} kcal\n"
+            text += f"{meal['meal_name']}\n"
             
             for food in meal['foods']:
                 text += f"  • {food['name']} - {food['calories']:.0f} kcal (P: {food['protein']:.1f}g, C: {food['carbs']:.1f}g, F: {food['fat']:.1f}g)\n"
@@ -343,6 +272,101 @@ def convert_plan_to_text(meal_plan):
         text += "\n"
     
     return text
+
+def create_shopping_list(meal_plan):
+    """
+    Create a shopping list from the meal plan
+    
+    Parameters:
+    - meal_plan: The generated meal plan dictionary
+    
+    Returns:
+    - A formatted shopping list as a string
+    """
+    # Dictionary to track all unique food items and their quantities
+    shopping_items = {}
+    
+    # Process each day in the meal plan
+    for day in meal_plan['days']:
+        for meal in day['meals']:
+            for food in meal['foods']:
+                food_name = food['name']
+                
+                # If the food is already in our list, just increment the count
+                if food_name in shopping_items:
+                    shopping_items[food_name]['count'] += 1
+                else:
+                    # Otherwise, add it as a new item
+                    shopping_items[food_name] = {
+                        'count': 1,
+                        'category': categorize_food(food_name)
+                    }
+    
+    # Create the shopping list text
+    text = "SHOPPING LIST\n"
+    text += "=" * 50 + "\n\n"
+    
+    # Group by category
+    categorized_items = {}
+    
+    for food_name, details in shopping_items.items():
+        category = details['category']
+        if category not in categorized_items:
+            categorized_items[category] = []
+        
+        categorized_items[category].append((food_name, details['count']))
+    
+    # Sort categories alphabetically
+    for category in sorted(categorized_items.keys()):
+        text += f"--- {category.upper()} ---\n"
+        
+        # Sort items within each category alphabetically
+        items = sorted(categorized_items[category], key=lambda x: x[0])
+        
+        for item, count in items:
+            text += f"[ ] {item} (x{count})\n"
+        
+        text += "\n"
+    
+    # Add a note about checking quantities
+    text += "\nNote: This shopping list shows the number of times each item appears in your meal plan.\n"
+    text += "You may need to adjust quantities based on your specific recipes and portion sizes.\n"
+    
+    return text
+
+def categorize_food(food_name):
+    """
+    Categorize a food item for the shopping list
+    
+    Parameters:
+    - food_name: The name of the food
+    
+    Returns:
+    - Category string
+    """
+    # Convert to lowercase for case-insensitive matching
+    food_lower = food_name.lower()
+    
+    # Define categories and their keywords
+    categories = {
+        'Fruits': ['apple', 'banana', 'orange', 'berries', 'fruit', 'pear', 'peach', 'grape'],
+        'Vegetables': ['broccoli', 'spinach', 'lettuce', 'carrot', 'tomato', 'onion', 'potato', 'vegetable', 'salad', 'pepper', 'cucumber'],
+        'Meat & Seafood': ['chicken', 'beef', 'pork', 'fish', 'salmon', 'shrimp', 'tuna', 'meat', 'turkey', 'lamb'],
+        'Dairy & Eggs': ['milk', 'cheese', 'yogurt', 'cream', 'butter', 'egg'],
+        'Grains & Bread': ['bread', 'rice', 'pasta', 'oats', 'cereal', 'flour', 'grain', 'wheat', 'barley', 'quinoa'],
+        'Legumes & Nuts': ['beans', 'lentils', 'peanut', 'almond', 'cashew', 'nut', 'seed', 'tofu'],
+        'Snacks & Sweets': ['chocolate', 'cookie', 'cake', 'snack', 'chips', 'candy', 'dessert', 'sweet'],
+        'Beverages': ['water', 'juice', 'coffee', 'tea', 'drink', 'beverage', 'smoothie'],
+        'Oils & Condiments': ['oil', 'vinegar', 'sauce', 'dressing', 'mayonnaise', 'ketchup', 'mustard', 'honey', 'syrup']
+    }
+    
+    # Check each category for matches
+    for category, keywords in categories.items():
+        if any(keyword in food_lower for keyword in keywords):
+            return category
+    
+    # Default category for unmatched items
+    return "Other"
 
 if __name__ == "__main__":
     main()
