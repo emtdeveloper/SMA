@@ -4,7 +4,7 @@ import numpy as np
 from datetime import datetime
 from utils.data_processing import calculate_bmi, save_user_records, load_user_records
 
-def create_new_user(first_name, last_name, gender, height, weight, diet, goal, health_conditions):
+def create_new_user(first_name, last_name, gender, age, height, weight, diet, goal, activity_level, allergies, preferred_cuisines, health_conditions):
     """
     Create a new user record
     
@@ -12,10 +12,14 @@ def create_new_user(first_name, last_name, gender, height, weight, diet, goal, h
     - first_name: User's first name
     - last_name: User's last name
     - gender: User's gender
+    - age: User's age
     - height: Height in cm
     - weight: Weight in kg
     - diet: Diet preference
     - goal: Fitness goal
+    - activity_level: Activity level (Sedentary, Lightly Active, etc.)
+    - allergies: List of food allergies
+    - preferred_cuisines: List of preferred cuisines
     - health_conditions: Any health conditions
     
     Returns:
@@ -39,11 +43,15 @@ def create_new_user(first_name, last_name, gender, height, weight, diet, goal, h
         new_user = {
             "name": name,
             "gender": gender.lower(),
+            "age": int(age),
             "height": float(height),
             "weight": float(weight),
             "bmi": bmi,
             "goal": goal,
             "diet": diet,
+            "activity_level": activity_level,
+            "allergies": allergies,
+            "preferred_cuisines": preferred_cuisines,
             "health_conditions": health_conditions,
             "progress_history": [
                 {
@@ -101,7 +109,12 @@ def update_user(user_id, data):
         if 'height' in data or 'weight' in data:
             height = user_data['height']
             weight = user_data['weight']
-            bmi, health_status = calculate_bmi(weight, height)
+            # Calculate new BMI
+            height = user_data['height']
+            age = user_data['age']  
+            gender = user_data['gender']
+            bmi = weight / ((height / 100) ** 2)
+            health_status = "Healthy" if 18.5 <= bmi < 24.9 else "Underweight" if bmi < 18.5 else "Overweight" if 24.9 <= bmi < 29.9 else "Obese"
             user_data['bmi'] = bmi
             user_data['health_status'] = health_status
         
@@ -201,7 +214,11 @@ def update_user_progress(user_id, weight):
         
         # Calculate new BMI
         height = user_data['height']
-        bmi, health_status = calculate_bmi(float(weight), height)
+        age = user_data['age']  
+        gender = user_data['gender']
+        bmi = weight / ((height / 100) ** 2)
+        health_status = "Healthy" if 18.5 <= bmi < 24.9 else "Underweight" if bmi < 18.5 else "Overweight" if 24.9 <= bmi < 29.9 else "Obese"
+    
         
         # Create progress entry
         progress_entry = {
