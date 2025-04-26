@@ -1,156 +1,201 @@
+import itertools
 import pandas as pd
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from utils.data_processing import calculate_calorie_needs, calculate_macros, filter_foods_by_preference
+import logging
+from sklearn.preprocessing import MinMaxScaler
+from utils.data_processing import filter_recipes_by_allergies_and_cuisines,load_optimized_meals
 
-def generate_meal_plan(user_data, food_data, days=7, meals_per_day=3):
+
+def generate_meal_plan_with_cosine_similarity(user_data, recipes_df, days,meals_per_day):
     """
-    Generate a meal plan based on user preferences and nutritional needs
-    
+    Generate a meal plan using cosine similarity to find the best matching meals
+
     Parameters:
     - user_data: Dict containing user information
-    - food_data: DataFrame with food nutrition data
+    - recipes_df: DataFrame containing recipe information
     - days: Number of days for the plan
-    - meals_per_day: Number of meals per day
-    
+
     Returns:
-    - Dict containing meal plan information
+    - Dict containing meal plan information or an error message
     """
-    # Filter foods based on dietary preference
-    filtered_foods = filter_foods_by_preference(food_data, user_data.get('diet', 'both'))
-    
-    if filtered_foods.empty:
-        return {"error": "No foods available that match your dietary preferences"}
-    
-    # Ensure 'Calories' column exists and is numeric
-    if 'Calories' not in filtered_foods.columns:
-        return {"error": "Food data is missing calorie information"}
-    
-    # Calculate daily calorie needs based on user profile
+    # Debug information
+    logging.info(f"Generating meal plan for user with data: {user_data}")
+
+    # Extract user profile fields with defaults
     weight = user_data.get('weight', 70)
     height = user_data.get('height', 170)
-    gender = user_data.get('gender', 'male')
-    goal = user_data.get('goal', 'Maintain Weight')
-    
-    # Assume a default age and activity level if not available
     age = user_data.get('age', 30)
+    gender = user_data.get('gender', 'male').lower()
+    goal = user_data.get('goal', 'Maintain Weight')
     activity_level = user_data.get('activity_level', 'moderately_active')
+
+    calories_needed= calculate_calorie_needs(weight, height, age, gender, activity_level, goal)
+
+    # Adjust calories for goals
+   
+    macros_needed = calculate_macros(2000, goal)    
+
+   
+    carbs_goal = macros_needed['carbs']
+    protein_goal = macros_needed['protein'] 
+    fat_goal = macros_needed['fat']   
+    calorie_goal = round((protein_goal * 4) + (carbs_goal * 4) + (fat_goal * 9))
     
-    daily_calories = calculate_calorie_needs(weight, height, age, gender, activity_level, goal)
-    macros = calculate_macros(daily_calories, goal)
     
-    # Calculate calories per meal (with some variation)
-    calories_per_meal = daily_calories / meals_per_day
     
-    # Generate meal plan
+    recipes_df = load_optimized_meals()
+    print(f"Loaded {recipes_df.shape[0]} recipes from optimized meals")
+    
+
+    # Filter recipes
+    allergies = user_data.get('allergies', [])
+    preferred_cuisines = user_data.get('preferred_cuisines', [])
+    logging.info(f"Filtering recipes with allergies={allergies} and cuisines={preferred_cuisines}")
+    filtered_df = filter_recipes_by_allergies_and_cuisines(recipes_df, allergies, preferred_cuisines)
+    
+    if filtered_df.empty:
+        return {"error": "No recipes available that match your preferences. Try adjusting filters."}
+     
+     # Build similarity-based week plan
+    week_plan = {}
+    for meal_type in ['breakfast', 'lunch', 'dinner']:
+        meal_df = filtered_df[filtered_df['meal_type'] == meal_type]
+        if meal_df.empty:
+            return {"error": f"No {meal_type} recipes found. Adjust preferences."}
+        print(f"Filtered recipes: {meal_df.shape[0]} recipes available")
+        scaler = MinMaxScaler()
+        features = ['calories','fat','carbs','protein']
+
+        # Fit on the underlying values array
+        scaler = MinMaxScaler()
+        scaler.fit(meal_df[features].values)
+
+        # Transform meals
+        nutrition_scaled = scaler.transform(meal_df[features].values)
+
+        # Make your user vector as a 2D array of the same shape
+        user_vector = np.array([[calorie_goal, fat_goal, carbs_goal, protein_goal]])
+        user_scaled = scaler.transform(user_vector)
+
+        similarity = cosine_similarity(user_scaled, nutrition_scaled)[0]
+        meal_df = meal_df.copy()
+        meal_df['similarity'] = similarity
+        week_plan[meal_type] = meal_df.sort_values('similarity', ascending=False).head(days).reset_index(drop=True)
+
+    # Assemble final plan structure
     meal_plan = {
         "user": user_data.get('name', 'User'),
-        "daily_calories": daily_calories,
-        "macros": macros,
+        "daily_calories": round(calorie_goal, 1),
+        "macros": {"protein": round(protein_goal), "carbs": round(carbs_goal), "fat": round(fat_goal)},
         "days": []
     }
-    
+
     for day in range(1, days + 1):
         day_plan = {
             "day": day,
-            "meals": [],
-            "total_calories": 0,
-            "total_protein": 0,
-            "total_carbs": 0,
-            "total_fat": 0
+            "meals": []
         }
-        
-        # Determine daily exercise based on day of the week
-        day_of_week = day % 7  # Convert to 0-6 for days of the week
-        
-        if day_of_week in [1, 3, 5]:  # Monday, Wednesday, Friday
-            day_plan["exercise_focus"] = "Strength Training"
-        elif day_of_week in [2, 6]:  # Tuesday, Saturday
-            day_plan["exercise_focus"] = "Cardio"
-        elif day_of_week == 4:  # Thursday
-            day_plan["exercise_focus"] = "Flexibility & Mobility"
-        else:  # Sunday
-            day_plan["exercise_focus"] = "Rest & Recovery"
-        
-        # Generate meals for the day
-        remaining_calories = daily_calories
-        
-        for meal_num in range(1, meals_per_day + 1):
-            # Calculate target calories for this meal
-            if meal_num == meals_per_day:
-                # Last meal gets remaining calories
-                target_calories = remaining_calories
-            else:
-                # Add some variation to meal calories
-                variation = np.random.uniform(0.8, 1.2)
-                target_calories = (calories_per_meal * variation)
-                # Ensure we don't exceed remaining calories
-                target_calories = min(target_calories, remaining_calories)
-            
-            # Find foods that fit within the target calories
-            # We'll use a simple approach: select foods randomly that add up to target calories
-            meal_foods = []
-            meal_calories = 0
-            meal_protein = 0
-            meal_carbs = 0
-            meal_fat = 0
-            
-            # Shuffle the food list to get variety
-            foods_shuffled = filtered_foods.sample(frac=1)
-            
-            # Select 2-4 foods for the meal
-            num_foods = np.random.randint(2, 5)
-            
-            # Try to find foods that add up to target calories
-            for i in range(min(len(foods_shuffled), 50)):  # Limit search to 50 foods
-                food = foods_shuffled.iloc[i]
-                food_calories = food.get('Calories', 0)
-                
-                # Skip foods with missing calorie data
-                if pd.isna(food_calories) or food_calories <= 0:
-                    continue
-                
-                # If adding this food keeps us within or close to target calories, add it
-                if len(meal_foods) < num_foods and meal_calories + food_calories <= target_calories * 1.1:
-                    meal_foods.append({
-                        "name": food.get('Food Name', f"Food {i}"),
-                        "calories": food_calories,
-                        "protein": food.get('Protein', 0),
-                        "carbs": food.get('Carbs', 0),
-                        "fat": food.get('Total Fat', 0)
-                    })
-                    
-                    meal_calories += food_calories
-                    meal_protein += food.get('Protein', 0)
-                    meal_carbs += food.get('Carbs', 0)
-                    meal_fat += food.get('Total Fat', 0)
-                
-                # If we have enough foods or are close enough to target calories, stop
-                if len(meal_foods) >= num_foods and meal_calories >= target_calories * 0.8:
-                    break
-            
-            # Create meal object
+
+        total_calories = total_protein = total_carbs = total_fat = 0
+
+        for meal_num, meal_type in enumerate(['breakfast', 'lunch', 'dinner'], 1):
+            # Select meal based on similarity, rotate daily
+            meal_idx = (day - 1) % len(week_plan[meal_type])
+            meal_rec = week_plan[meal_type].iloc[meal_idx]
+
             meal = {
                 "meal_number": meal_num,
-                "meal_name": get_meal_name(meal_num, meals_per_day),
-                "foods": meal_foods,
-                "calories": meal_calories,
-                "protein": meal_protein,
-                "carbs": meal_carbs,
-                "fat": meal_fat
+                "meal_name": meal_type.capitalize(),
+                "foods": [{
+                    "name": meal_rec['name'],
+                    "calories": meal_rec['calories'],
+                    "protein": meal_rec['protein'],
+                    "carbs": meal_rec['carbs'],
+                    "fat": meal_rec['fat']
+                }]
             }
-            
+
             day_plan["meals"].append(meal)
-            day_plan["total_calories"] += meal_calories
-            day_plan["total_protein"] += meal_protein
-            day_plan["total_carbs"] += meal_carbs
-            day_plan["total_fat"] += meal_fat
-            
-            remaining_calories -= meal_calories
+
+            # Update running totals
+            total_calories += meal_rec['calories']
+            total_protein += meal_rec['protein']
+            total_carbs += meal_rec['carbs']
+            total_fat += meal_rec['fat']
+
+        # Add extra meals/snacks only if calorie goal not yet met
+        meal_types_cycle = itertools.cycle(['breakfast', 'lunch', 'dinner'])
+        pointers = {'breakfast': 0, 'lunch': 0, 'dinner': 0}
+
+        while total_calories < calorie_goal - 50:  # Small buffer
+            current_meal_type = next(meal_types_cycle)
+            pointer = pointers[current_meal_type]
+
+            if pointer >= len(week_plan[current_meal_type]):
+                continue  # No more meals available
+
+            extra_meal_rec = week_plan[current_meal_type].iloc[pointer]
+            pointers[current_meal_type] += 1
+
+            if total_calories + extra_meal_rec['calories'] > calorie_goal + 50:
+                # Try to add a fraction of the meal if possible
+                remaining_calories = calorie_goal - total_calories
+                fraction = remaining_calories / extra_meal_rec['calories']
+
+                if fraction >= 0.4:  # Only add if at least 40% of the meal
+                    extra_food = {
+                        "name": extra_meal_rec['name'] + f" (x{round(fraction,2)})",
+                        "calories": extra_meal_rec['calories'] * fraction,
+                        "protein": extra_meal_rec['protein'] * fraction,
+                        "carbs": extra_meal_rec['carbs'] * fraction,
+                        "fat": extra_meal_rec['fat'] * fraction
+                    }
+
+                    lowest_meal = min(day_plan["meals"], key=lambda m: sum(f["calories"] for f in m["foods"]))
+                    lowest_meal["foods"].append(extra_food)
+
+                    total_calories += extra_food['calories']
+                    total_protein += extra_food['protein']
+                    total_carbs += extra_food['carbs']
+                    total_fat += extra_food['fat']
+
+                break  # Whether or not fraction added, stop the loop
+
+            else:
+                # Normal full addition
+                extra_food = {
+                    "name": extra_meal_rec['name'],
+                    "calories": extra_meal_rec['calories'],
+                    "protein": extra_meal_rec['protein'],
+                    "carbs": extra_meal_rec['carbs'],
+                    "fat": extra_meal_rec['fat']
+                }
+
+                lowest_meal = min(day_plan["meals"], key=lambda m: sum(f["calories"] for f in m["foods"]))
+                lowest_meal["foods"].append(extra_food)
+
+                total_calories += extra_meal_rec['calories']
+                total_protein += extra_meal_rec['protein']
+                total_carbs += extra_meal_rec['carbs']
+                total_fat += extra_meal_rec['fat']
+
+
+        # Store totals neatly
+        day_plan.update({
+            'total_calories': round(total_calories, 1),
+            'total_protein': round(total_protein, 1),
+            'total_carbs': round(total_carbs, 1),
+            'total_fat': round(total_fat, 1)
+        })
+
+        meal_plan['days'].append(day_plan)
+
         
-        meal_plan["days"].append(day_plan)
-    
+        
     return meal_plan
+
 
 def get_meal_name(meal_number, total_meals):
     """
@@ -309,11 +354,27 @@ def recommend_exercises(user_data, exercise_data, num_recommendations=5):
         'Flexibility': ['Stretch', 'Yoga', 'Mobility', 'Flexibility']
     }
     
-    # Categorize exercises
+    # Define muscle groups to ensure diversity in strength training
+    muscle_groups = {
+        'Upper Body': ['Shoulder', 'Upper Arms', 'Forearm', 'Chest', 'Back', 'Neck', 'Deltoid', 'Triceps', 'Biceps', 'Pectoralis', 'Latissimus', 'Trapezius'],
+        'Core': ['Waist', 'Abs', 'Core', 'Erector Spinae'],
+        'Lower Body': ['Hips', 'Thighs', 'Calves', 'Glutes', 'Quadriceps', 'Hamstrings', 'Gastrocnemius', 'Soleus', 'Gluteus Maximus']
+    }
+    
+    # Track selected muscles to ensure diversity
+    selected_muscles = []
+    
+    # First categorize exercises
+    categorized_exercises = {
+        "Cardio": [],
+        "Strength": [],
+        "Flexibility": []
+    }
+    
     for _, exercise in exercise_data.iterrows():
         exercise_type = exercise.get('Equipment Type', '').strip()
         exercise_name = exercise.get('Exercise', '').strip()
-        main_muscle = exercise.get('Main Muscle', '').strip()
+        main_muscle = str(exercise.get('Main Muscle', '')).strip()
         
         # Skip exercises with empty names
         if not exercise_name:
@@ -326,27 +387,103 @@ def recommend_exercises(user_data, exercise_data, num_recommendations=5):
                 category = cat
                 break
         
-        # Default to Strength if not categorized
+        # Default to Strength if not categorized but has a valid main muscle group
         if not category:
-            category = 'Strength'
+            if any(muscle.lower() in main_muscle.lower() for group in muscle_groups.values() for muscle in group):
+                category = 'Strength'
+            else:
+                category = 'Flexibility'  # Default to flexibility for general exercises
         
-        # Add exercise to appropriate category
-        if len(recommendations[category]) < int(num_recommendations * weights[category]):
-            recommendations[category].append({
-                "name": exercise_name,
-                "type": exercise_type,
-                "main_muscle": main_muscle,
-                "preparation": exercise.get('Preparation', ''),
-                "execution": exercise.get('Execution', ''),
-                "target_muscles": exercise.get('Target Muscles', ''),
-                "synergist_muscles": exercise.get('Synergist Muscles', '')
-            })
+        # Create exercise dictionary
+        exercise_dict = {
+            "name": exercise_name,
+            "type": exercise_type,
+            "main_muscle": main_muscle,
+            "preparation": exercise.get('Preparation', ''),
+            "execution": exercise.get('Execution', ''),
+            "target_muscles": exercise.get('Target Muscles', ''),
+            "synergist_muscles": exercise.get('Synergist Muscles', '')
+        }
+        
+        # Add to categorized exercises
+        categorized_exercises[category].append(exercise_dict)
     
-    # If any category is empty, fill with random exercises of that type
+    # Select exercises for each category with focus on diversity for Strength
+    if categorized_exercises['Strength']:
+        # Group strength exercises by muscle groups
+        strength_by_muscle = {
+            'Upper Body': [],
+            'Core': [],
+            'Lower Body': []
+        }
+        
+        for exercise in categorized_exercises['Strength']:
+            main_muscle = str(exercise['main_muscle']).lower()
+            
+            # Assign to a muscle group
+            assigned = False
+            for group_name, muscles in muscle_groups.items():
+                if any(muscle.lower() in main_muscle for muscle in muscles):
+                    strength_by_muscle[group_name].append(exercise)
+                    assigned = True
+                    break
+            
+            # If not assigned to any group, put in a default group
+            if not assigned:
+                strength_by_muscle['Core'].append(exercise)
+        
+        # Select a balanced distribution from each muscle group
+        strength_recommendations = []
+        
+        # Define how many exercises to take from each group
+        num_strength = int(num_recommendations * weights['Strength'])
+        
+        # Allocate proportions based on complete body workout principles
+        upper_count = max(1, int(num_strength * 0.4))
+        lower_count = max(1, int(num_strength * 0.4))
+        core_count = max(1, num_strength - upper_count - lower_count)
+        
+        # Select exercises from each group
+        if strength_by_muscle['Upper Body']:
+            strength_recommendations.extend(
+                sorted(strength_by_muscle['Upper Body'], key=lambda x: x['name'])[:upper_count]
+            )
+        
+        if strength_by_muscle['Lower Body']:
+            strength_recommendations.extend(
+                sorted(strength_by_muscle['Lower Body'], key=lambda x: x['name'])[:lower_count]
+            )
+        
+        if strength_by_muscle['Core']:
+            strength_recommendations.extend(
+                sorted(strength_by_muscle['Core'], key=lambda x: x['name'])[:core_count]
+            )
+        
+        # Fill if we didn't get enough exercises
+        while len(strength_recommendations) < num_strength and categorized_exercises['Strength']:
+            # Add random exercises that aren't already included
+            available = [ex for ex in categorized_exercises['Strength'] 
+                         if ex not in strength_recommendations]
+            if not available:
+                break
+                
+            strength_recommendations.append(available[0])
+        
+        recommendations['Strength'] = strength_recommendations
+    
+    # Fill Cardio and Flexibility categories
+    num_cardio = int(num_recommendations * weights['Cardio'])
+    if categorized_exercises['Cardio']:
+        recommendations['Cardio'] = categorized_exercises['Cardio'][:num_cardio]
+    
+    num_flexibility = int(num_recommendations * weights['Flexibility'])
+    if categorized_exercises['Flexibility']:
+        recommendations['Flexibility'] = categorized_exercises['Flexibility'][:num_flexibility]
+    
+    # If any category is still empty, fill with random exercises from the dataset
     for category, exercises in recommendations.items():
         if not exercises:
-            # Get random exercises for this category
-            category_exercises = [
+            random_exercises = [
                 {
                     "name": exercise.get('Exercise', 'Unknown Exercise'),
                     "type": exercise.get('Equipment Type', ''),
@@ -360,6 +497,6 @@ def recommend_exercises(user_data, exercise_data, num_recommendations=5):
                 if exercise.get('Exercise', '')
             ]
             
-            recommendations[category] = category_exercises[:int(num_recommendations * weights[category])]
+            recommendations[category] = random_exercises[:int(num_recommendations * weights[category])]
     
     return recommendations
