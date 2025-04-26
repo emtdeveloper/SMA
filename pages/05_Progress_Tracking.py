@@ -147,7 +147,7 @@ def display_progress_charts(user_data):
         progress_history = user_data.get('progress_history', [])
         if progress_history:
             weight_fig = create_weight_progress_chart(progress_history)
-            st.plotly_chart(weight_fig, use_container_width=True)
+            st.plotly_chart(weight_fig, use_container_width=True, key="weight_chart_progress_tab")
             
             # Add insight about weight change
             if len(progress_history) > 1:
@@ -464,7 +464,7 @@ def display_muscle_gain_goal(progress_history):
     # Show weight chart as supplementary data
     if progress_history:
         weight_fig = create_weight_progress_chart(progress_history)
-        st.plotly_chart(weight_fig, use_container_width=True)
+        st.plotly_chart(weight_fig, use_container_width=True, key="weight_chart_muscle_goal")
 
 def display_full_history(user_data):
     """
