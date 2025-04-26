@@ -4,7 +4,7 @@ import numpy as np
 import json
 import os
 from datetime import datetime
-from utils.data_processing import load_food_data, load_exercise_data, load_user_records
+from utils.data_processing import load_food_data, load_exercise_data, load_user_records, load_optimized_meals
 
 # Set page configuration
 st.set_page_config(
@@ -20,6 +20,9 @@ if 'food_data' not in st.session_state:
 
 if 'exercise_data' not in st.session_state:
     st.session_state.exercise_data = load_exercise_data()
+
+if 'optimized_meals' not in st.session_state:
+    st.session_state.optimized_meals = load_optimized_meals()
 
 if 'user_records' not in st.session_state:
     st.session_state.user_records = load_user_records()
