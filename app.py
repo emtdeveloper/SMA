@@ -4,7 +4,8 @@ import numpy as np
 import json
 import os
 from datetime import datetime
-from utils.data_processing import load_food_data, load_exercise_data, load_user_records
+from utils.db import connect_to_mongo
+from utils.data_processing import load_food_data, load_exercise_data, load_user_records, load_optimized_meals
 
 # Set page configuration
 st.set_page_config(
@@ -14,6 +15,22 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Hide Streamlit default elements
+hide_streamlit_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            [data-testid="stSidebarNav"] {display: none;}
+            </style>
+            """
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
+# Connect to MongoDB
+client = connect_to_mongo()
+db = client["smart-meals-database"]
+users_collection = db["users"]
+
 # Initialize session state variables if they don't exist
 if 'food_data' not in st.session_state:
     st.session_state.food_data = load_food_data()
@@ -21,14 +38,15 @@ if 'food_data' not in st.session_state:
 if 'exercise_data' not in st.session_state:
     st.session_state.exercise_data = load_exercise_data()
 
-if 'user_records' not in st.session_state:
-    st.session_state.user_records = load_user_records()
-
-if 'current_user' not in st.session_state:
-    st.session_state.current_user = None
+if 'optimized_meals' not in st.session_state:
+    st.session_state.optimized_meals = load_optimized_meals()
 
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
+
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+
 
 # Main app
 def main():
@@ -49,6 +67,32 @@ def main():
     
     Get started by creating or selecting your profile in the sidebar!
     """)
+
+    # Create login / signup button
+    if not st.session_state.get("logged_in", False):
+        with st.container():
+            # Outer container controls alignment
+            left_space, main_content, right_space = st.columns([0.01, 1, 2])
+
+            with main_content:
+                st.markdown("""
+                    <div style="padding: 1rem; background-color: #262730; border-radius: 10px; width: 445px;">
+                        <h4 style="color: #fafafa; text-align: center;">Please log in or sign up to access features.</h4>
+                    </div>
+                """, unsafe_allow_html=True)
+
+                st.write("")  # small vertical space
+
+                # Now create two small button columns inside the main column
+                button_col1, button_col2 = st.columns([1, 1])
+
+                with button_col1:
+                    if st.button("🔐 Login", use_container_width=True):
+                        st.switch_page("pages/00_Login.py")
+
+                with button_col2:
+                    if st.button("🔑 Sign Up", use_container_width=True):
+                        st.switch_page("pages/01_Signup.py")
     
     # Featured statistics or insights
     col1, col2, col3 = st.columns(3)
@@ -60,7 +104,7 @@ def main():
         st.metric(label="Exercise Routines Available", value=f"{len(st.session_state.exercise_data):,}")
     
     with col3:
-        user_count = len(st.session_state.user_records.get("records", {}))
+        user_count = users_collection.count_documents({})
         st.metric(label="Active User Profiles", value=user_count)
     
     # Quick actions
@@ -69,16 +113,16 @@ def main():
     quick_action_cols = st.columns(3)
     
     with quick_action_cols[0]:
-        if st.button("📝 Create New Profile", use_container_width=True):
-            st.switch_page("pages/01_Profile.py")
+        if st.button("🏋️ Get an Exercise", use_container_width=True):
+            st.switch_page("pages/04_Exercise_Recommendations.py")
     
     with quick_action_cols[1]:
         if st.button("🍽️ Plan Your Meals", use_container_width=True):
-            st.switch_page("pages/02_Meal_Planner.py")
+            st.switch_page("pages/03_Meal_Planner.py")
     
     with quick_action_cols[2]:
         if st.button("💬 Chat with Assistant", use_container_width=True):
-            st.switch_page("pages/04_Chatbot.py")
+            st.switch_page("pages/05_Chatbot.py")
     
     # Featured meal of the day (random selection)
     st.subheader("Featured Healthy Meal Idea")
@@ -134,64 +178,44 @@ def main():
     
     st.info(f"💡 **Tip of the Day:** {np.random.choice(health_tips)}")
 
-# Sidebar for navigation and user selection
 def sidebar():
     st.sidebar.title("Navigation")
     
-    # User selection or profile creation
-    st.sidebar.subheader("User Profile")
-    
-    user_records = st.session_state.user_records.get("records", {})
-    
-    if user_records:
-        user_options = ["Select a profile"] + list(user_records.keys())
-        selected_profile = st.sidebar.selectbox(
-            "Select your profile:",
-            options=user_options
-        )
+    # Check login status
+    if st.session_state.get("logged_in", False):
+        st.sidebar.success(f"Logged in as {st.session_state.get('username', 'Unknown')}")
         
-        if selected_profile != "Select a profile":
-            st.session_state.current_user = selected_profile
-            user_data = user_records[selected_profile]
-            
-            # Display current user info
-            st.sidebar.markdown(f"**Name:** {user_data.get('name', 'N/A')}")
-            st.sidebar.markdown(f"**BMI:** {user_data.get('bmi', 'N/A')}")
-            st.sidebar.markdown(f"**Goal:** {user_data.get('goal', 'N/A')}")
-            st.sidebar.markdown(f"**Diet:** {user_data.get('diet', 'N/A')}")
-            
-            if st.sidebar.button("Log Out"):
-                st.session_state.current_user = None
-                st.rerun()
+        if st.sidebar.button("Log Out"):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.rerun()
     else:
-        st.sidebar.info("No profiles found. Create a new profile to get started!")
+        st.sidebar.info("Please log in or sign up to use features.")
     
-    # Create new profile button
-    if st.sidebar.button("Create New Profile"):
-        st.switch_page("pages/01_Profile.py")
-    
-    # Navigation links
     st.sidebar.subheader("Features")
     
     features = {
         "🏠 Home": "app.py",
         "📝 Profile": "pages/01_Profile.py",
-        "🍽️ Meal Planner": "pages/02_Meal_Planner.py",
-        "🏋️ Exercise Recommendations": "pages/03_Exercise_Recommendations.py",
-        "💬 Chatbot Assistant": "pages/04_Chatbot.py",
-        "📈 Progress Tracking": "pages/05_Progress_Tracking.py"
+        "🍽️ Meal Planner": "pages/03_Meal_Planner.py",
+        "🏋️ Exercise Recommendations": "pages/04_Exercise_Recommendations.py",
+        "💬 Chatbot Assistant": "pages/05_Chatbot.py",
+        "📈 Progress Tracking": "pages/06_Progress_Tracking.py"
     }
     
     for feature_name, feature_page in features.items():
         if st.sidebar.button(feature_name, use_container_width=True):
-            st.switch_page(feature_page)
+            if st.session_state.get("logged_in", False):
+                st.switch_page(feature_page)
+            else:
+                st.error("Please log in to access this feature.")
     
-    # App info
     st.sidebar.markdown("---")
     st.sidebar.info(
         "Smart Meal Planning & Health Assistant\n\n"
         "An AI-powered application for personalized nutrition and exercise guidance."
     )
+
 
 # Run the app
 if __name__ == "__main__":

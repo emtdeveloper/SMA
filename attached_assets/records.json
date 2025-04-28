@@ -3,9 +3,9 @@
         "1": {
             "name": "nagizaaz shaik",
             "gender": "male",
-            "height": 174.92000000000007,
+            "height": 175.0,
             "weight": 70.0,
-            "bmi": 22.88,
+            "bmi": 22.857142857142858,
             "goal": "Muscle Gain",
             "diet": "both",
             "health_conditions": "no",
@@ -25,9 +25,9 @@
             ],
             "health_status": "Healthy",
             "age": 30,
-            "activity_level": "Very Active",
-            "allergies": "None",
-            "preferred_cuisines": ""
+            "activity_level": "moderately active",
+            "allergies": [],
+            "preferred_cuisines": []
         },
         "2": {
             "name": "darshan jigala",
@@ -43,19 +43,11 @@
             "name": "neelima botla",
             "gender": "female",
             "height": 160.0,
-            "weight": 74.89999999999995,
-            "bmi": 29.26,
+            "weight": 75.0,
+            "bmi": 29.3,
             "goal": "Weight Loss",
             "diet": "both",
-            "health_conditions": "no",
-            "progress_history": [
-                {
-                    "timestamp": "2025-03-24 12:33:20",
-                    "weight": 74.89999999999995,
-                    "bmi": 29.26
-                }
-            ],
-            "health_status": "Overweight"
+            "health_conditions": "no"
         },
         "4": {
             "name": "Nikhil reddy",
@@ -88,7 +80,7 @@
             "height": 179.0,
             "weight": 75.0,
             "bmi": 23.41,
-            "goal": "Not specified",
+            "goal": "muscle",
             "diet": "both",
             "health_conditions": "no",
             "health_status": "Healthy",
@@ -99,14 +91,34 @@
             "name": "arun tushar",
             "gender": "male",
             "height": 180.0,
-            "weight": 70.0,
-            "bmi": 21.6,
-            "goal": "muscle gain",
+            "weight": 79.0,
+            "bmi": 24.38,
+            "goal": "Muscle Gain",
             "diet": "both",
             "health_conditions": "no",
             "health_status": "Healthy",
-            "progress_history": [],
-            "food_preferences": []
+            "progress_history": [
+                {
+                    "timestamp": "2025-03-25 19:50:32",
+                    "weight": 69.0,
+                    "bmi": 21.3
+                },
+                {
+                    "timestamp": "2025-03-25 19:51:12",
+                    "weight": 79.0,
+                    "bmi": 24.38
+                }
+            ],
+            "food_preferences": [],
+            "age": 30,
+            "activity_level": "lightly active",
+            "allergies": [
+                "dairy"
+            ],
+            "preferred_cuisines": [
+                "Indian",
+                "Mexican"
+            ]
         },
         "8": {
             "name": "t r",
@@ -127,43 +139,26 @@
             "health_status": "Overweight"
         },
         "9": {
-            "name": "arun selvin kumar vijayakumar",
+            "name": "asd a",
             "gender": "male",
-            "age": 30,
-            "activity_level": "Sedentary",
-            "height": 170.0,
+            "age": 24,
+            "height": 170.07999999999993,
             "weight": 70.0,
-            "bmi": 24.22,
+            "bmi": 1517.8708399999996,
             "goal": "Weight Loss",
-            "diet": "Vegetarian",
-            "health_conditions": "None",
-            "food_preferences": [],
-            "progress_history": [
-                {
-                    "timestamp": "2025-03-24 22:38:44",
-                    "weight": 70.0,
-                    "bmi": 24.22
-                }
-            ],
-            "health_status": "Healthy"
-        },
-        "10": {
-            "name": "arun selvin kumar vijayakumar",
-            "gender": "male",
-            "height": 170.0,
-            "weight": 70.0,
-            "bmi": 24.22,
-            "goal": "Weight Loss",
-            "diet": "Vegetarian",
+            "diet": "vegetarian",
+            "activity_level": "very active",
+            "allergies": [],
+            "preferred_cuisines": [],
             "health_conditions": "",
             "progress_history": [
                 {
-                    "timestamp": "2025-03-24 22:46:31",
+                    "timestamp": "2025-04-22 23:03:18",
                     "weight": 70.0,
                     "bmi": 24.22
                 }
             ],
-            "health_status": "Healthy"
+            "health_status": "Obese"
         }
     },
     "next_record_id": 8

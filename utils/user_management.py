@@ -1,258 +1,145 @@
-import json
-import pandas as pd
-import numpy as np
+import bcrypt
+from pymongo import MongoClient
+from bson.objectid import ObjectId #type: ignore
+from utils.db import connect_to_mongo
 from datetime import datetime
-from utils.data_processing import calculate_bmi, save_user_records, load_user_records
 
-def create_new_user(first_name, last_name, gender, height, weight, diet, goal, health_conditions):
-    """
-    Create a new user record
+# MongoDB connection
+client = connect_to_mongo()
+db = client["smart-meals-database"]
+users_collection = db["users"]
+
+def authenticate_user(username, password):
+    user = users_collection.find_one({"username": username})
+    if not user:
+        return False, None, None
+
+    if bcrypt.checkpw(password.encode('utf-8'), user["password"]):
+        is_admin = user.get("is_admin", False)  # Default False if missing
+        return True, str(user["_id"]), is_admin
+    else:
+        return False, None, None
     
-    Parameters:
-    - first_name: User's first name
-    - last_name: User's last name
-    - gender: User's gender
-    - height: Height in cm
-    - weight: Weight in kg
-    - diet: Diet preference
-    - goal: Fitness goal
-    - health_conditions: Any health conditions
-    
-    Returns:
-    - Tuple: (success, message, user_id)
-    """
-    try:
-        # Load existing records
-        user_records = load_user_records()
-        
-        # Create name
-        name = f"{first_name.strip().lower()} {last_name.strip().lower()}"
-        
-        # Calculate BMI
-        bmi, health_status = calculate_bmi(weight, height)
-        
-        # Generate a new user ID
-        records = user_records.get("records", {})
-        new_id = str(len(records) + 1)
-        
-        # Create new user record
-        new_user = {
-            "name": name,
-            "gender": gender.lower(),
-            "height": float(height),
-            "weight": float(weight),
-            "bmi": bmi,
-            "goal": goal,
-            "diet": diet,
-            "health_conditions": health_conditions,
-            "progress_history": [
-                {
-                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "weight": float(weight),
-                    "bmi": bmi
-                }
-            ],
-            "health_status": health_status
-        }
-        
-        # Add to records
-        records[new_id] = new_user
-        user_records["records"] = records
-        
-        # Save updated records
-        save_success = save_user_records(user_records)
-        
-        if save_success:
-            return True, f"Record {new_id} inserted successfully!", new_id
-        else:
-            return False, "Failed to save user record.", None
-            
-    except Exception as e:
-        return False, f"Error creating user: {str(e)}", None
+def register_user(username, email, password):
+    existing_user = users_collection.find_one({"username": username})
+    if existing_user:
+        return False, "Username already exists.", None
+
+    hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+
+    new_user = {
+        "username": username,
+        "email": email,
+        "password": hashed_password,
+        "is_admin": False,
+        "profile_complete": False,
+
+        # Initialize the "profile fields" empty
+        "name": "",
+        "gender": "",
+        "age": None,
+        "height": None,
+        "weight": None,
+        "bmi": None,
+        "goal": "",
+        "diet": "",
+        "activity_level": "",
+        "allergies": [],
+        "preferred_cuisines": [],
+        "health_conditions": "",
+        "progress_history": [],
+        "health_status": ""
+    }
+
+    result = users_collection.insert_one(new_user)
+    return True, "User registered successfully!", str(result.inserted_id)
 
 def update_user(user_id, data):
-    """
-    Update an existing user record
-    
-    Parameters:
-    - user_id: ID of the user to update
-    - data: Dict containing fields to update
-    
-    Returns:
-    - Tuple: (success, message)
-    """
     try:
-        # Load existing records
-        user_records = load_user_records()
-        
-        # Check if user exists
-        records = user_records.get("records", {})
-        if user_id not in records:
-            return False, f"User ID {user_id} not found."
-        
-        # Get current user data
-        user_data = records[user_id]
-        
-        # Update fields
-        for key, value in data.items():
-            user_data[key] = value
-        
-        # Recalculate BMI if height or weight were updated
-        if 'height' in data or 'weight' in data:
-            height = user_data['height']
-            weight = user_data['weight']
-            bmi, health_status = calculate_bmi(weight, height)
-            user_data['bmi'] = bmi
-            user_data['health_status'] = health_status
-        
-        # Update record
-        records[user_id] = user_data
-        user_records["records"] = records
-        
-        # Save updated records
-        save_success = save_user_records(user_records)
-        
-        if save_success:
+        # Recalculate BMI if weight or height updated
+        if "height" in data or "weight" in data:
+            user = users_collection.find_one({"_id": ObjectId(user_id)})
+            height = data.get("height", user.get("height"))
+            weight = data.get("weight", user.get("weight"))
+            
+            # Only calculate BMI if both height and weight exist
+            if height and weight and isinstance(height, (int, float)) and isinstance(weight, (int, float)):
+                bmi = weight / ((height / 100) ** 2)
+                health_status = (
+                    "Healthy" if 18.5 <= bmi < 24.9
+                    else "Underweight" if bmi < 18.5
+                    else "Overweight" if 24.9 <= bmi < 29.9
+                    else "Obese"
+                )
+                data["bmi"] = bmi
+                data["health_status"] = health_status
+
+        # Update the user record
+        result = users_collection.update_one({"_id": ObjectId(user_id)}, {"$set": data})
+        if result.modified_count:
             return True, f"User {user_id} updated successfully!"
         else:
-            return False, "Failed to save user record."
-            
+            return False, "No changes were made."
     except Exception as e:
         return False, f"Error updating user: {str(e)}"
 
 def delete_user(user_id):
-    """
-    Delete a user record
-    
-    Parameters:
-    - user_id: ID of the user to delete
-    
-    Returns:
-    - Tuple: (success, message)
-    """
     try:
-        # Load existing records
-        user_records = load_user_records()
-        
-        # Check if user exists
-        records = user_records.get("records", {})
-        if user_id not in records:
-            return False, f"User ID {user_id} not found."
-        
-        # Delete record
-        del records[user_id]
-        user_records["records"] = records
-        
-        # Save updated records
-        save_success = save_user_records(user_records)
-        
-        if save_success:
+        result = users_collection.delete_one({"_id": ObjectId(user_id)})
+        if result.deleted_count:
             return True, f"User {user_id} deleted successfully!"
         else:
-            return False, "Failed to save user record."
-            
+            return False, f"User ID {user_id} not found."
     except Exception as e:
         return False, f"Error deleting user: {str(e)}"
 
 def get_user(user_id):
-    """
-    Get a user record
-    
-    Parameters:
-    - user_id: ID of the user to retrieve
-    
-    Returns:
-    - User data dict or None if not found
-    """
     try:
-        # Load records
-        user_records = load_user_records()
-        
-        # Get user data
-        records = user_records.get("records", {})
-        return records.get(user_id)
-            
+        user = users_collection.find_one({"_id": ObjectId(user_id)})
+        if user:
+            user["_id"] = str(user["_id"])  # Make ObjectId JSON serializable
+        return user
     except Exception as e:
         print(f"Error getting user: {str(e)}")
         return None
 
 def update_user_progress(user_id, weight):
-    """
-    Add a new progress entry for a user
-    
-    Parameters:
-    - user_id: ID of the user
-    - weight: New weight in kg
-    
-    Returns:
-    - Tuple: (success, message)
-    """
     try:
-        # Load existing records
-        user_records = load_user_records()
-        
-        # Check if user exists
-        records = user_records.get("records", {})
-        if user_id not in records:
+        user = users_collection.find_one({"_id": ObjectId(user_id)})
+        if not user:
             return False, f"User ID {user_id} not found."
         
-        # Get current user data
-        user_data = records[user_id]
-        
-        # Calculate new BMI
-        height = user_data['height']
-        bmi, health_status = calculate_bmi(float(weight), height)
-        
-        # Create progress entry
+        height = user["height"]
+        bmi = weight / ((height / 100) ** 2)
+        health_status = "Healthy" if 18.5 <= bmi < 24.9 else "Underweight" if bmi < 18.5 else "Overweight" if 24.9 <= bmi < 29.9 else "Obese"
+
         progress_entry = {
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "weight": float(weight),
             "bmi": bmi
         }
-        
-        # Add to progress history
-        if 'progress_history' not in user_data:
-            user_data['progress_history'] = []
-        
-        user_data['progress_history'].append(progress_entry)
-        
-        # Update current weight and BMI
-        old_weight = user_data.get('weight', 0)
-        old_bmi = user_data.get('bmi', 0)
-        
-        user_data['weight'] = float(weight)
-        user_data['bmi'] = bmi
-        user_data['health_status'] = health_status
-        
-        # Update record
-        records[user_id] = user_data
-        user_records["records"] = records
-        
-        # Save updated records
-        save_success = save_user_records(user_records)
-        
-        if save_success:
-            return True, f"Progress updated! Previous: {old_weight}kg (BMI: {old_bmi}), New: {weight}kg (BMI: {bmi})"
-        else:
-            return False, "Failed to save progress."
-            
+
+        users_collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {
+                "$push": {"progress_history": progress_entry},
+                "$set": {
+                    "weight": float(weight),
+                    "bmi": bmi,
+                    "health_status": health_status
+                }
+            }
+        )
+        return True, "Progress updated successfully!"
     except Exception as e:
         return False, f"Error updating progress: {str(e)}"
 
 def get_all_users():
-    """
-    Get all user records
-    
-    Returns:
-    - Dict of all user records
-    """
     try:
-        # Load records
-        user_records = load_user_records()
-        
-        # Return all records
-        return user_records.get("records", {})
-            
+        users = list(users_collection.find())
+        for user in users:
+            user["_id"] = str(user["_id"])
+        return users
     except Exception as e:
         print(f"Error getting users: {str(e)}")
-        return {}
+        return []

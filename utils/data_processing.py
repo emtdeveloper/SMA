@@ -183,6 +183,19 @@ def calculate_macros(calories, goal):
         "fat": round(fat_grams)
     }
 
+def load_optimized_meals():
+    """
+    Load the optimized meals dataset for meal planning
+    """
+    try:
+        # Load the recipes dataframe from parquet file
+        recipes_df = pd.read_parquet('attached_assets/optimized_recipes.parquet')
+        return recipes_df
+    except Exception as e:
+        print(f"Error loading optimized meals data: {e}")
+        # Return empty DataFrame if file not found or other error
+        return pd.DataFrame()
+
 def filter_foods_by_preference(food_data, diet_preference):
     """
     Filter foods based on user's dietary preference
@@ -213,3 +226,51 @@ def filter_foods_by_preference(food_data, diet_preference):
     else:
         # Return all foods for 'both' or any other preference
         return food_data
+
+def filter_recipes_by_allergies_and_cuisines(recipes_df, allergies=None, preferred_cuisines=None):
+    """
+    Filter recipes based on allergies and preferred cuisines
+    
+    Parameters:
+    - recipes_df: DataFrame containing recipes data
+    - allergies: List of allergies to avoid
+    - preferred_cuisines: List of preferred cuisines
+    
+    Returns:
+    - Filtered DataFrame
+    """
+    if recipes_df.empty:
+        return recipes_df
+        
+    filtered_df = recipes_df.copy()
+    
+    # Filter by allergies if provided
+    if allergies and len(allergies) > 0:
+        # Clean allergies list - handle both string and list inputs
+        if isinstance(allergies, str):
+            allergies = [a.strip().lower() for a in allergies.split(',')]
+        else:
+            allergies = [a.strip().lower() for a in allergies]
+        
+        # Only apply filter if we have valid allergies
+        if allergies:
+            # Use vectorized operations where possible
+            filtered_df = filtered_df[~filtered_df['ingredients'].apply(
+                lambda ingredients: any(any(allergen in ingredient.lower() for ingredient in ingredients) 
+                                      for allergen in allergies)
+            )]
+    
+    # Filter by cuisines if provided
+    if preferred_cuisines and len(preferred_cuisines) > 0:
+        # Only apply cuisine filter if we still have recipes left
+        if not filtered_df.empty:
+            # If no cuisines specified after filtering allergies, return all
+            if len(preferred_cuisines) == 0:
+                return filtered_df
+                
+            # Otherwise apply cuisine filter    
+            filtered_df = filtered_df[filtered_df['tags'].apply(
+                lambda tags: any(cuisine.lower() in tag.lower() for tag in tags for cuisine in preferred_cuisines)
+            )]
+    
+    return filtered_df

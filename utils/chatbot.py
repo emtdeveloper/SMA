@@ -47,9 +47,36 @@ class NutritionChatbot:
         """
         message = message.lower()
         
+        # Multiple intents can be found in a single message
+        matched_intents = []
+        
         for intent, patterns in self.intent_patterns.items():
             for pattern in patterns:
                 if pattern.search(message):
+                    matched_intents.append(intent)
+                    break  # Found one match for this intent, move to next intent
+        
+        # If found exactly one intent, return it
+        if len(matched_intents) == 1:
+            return matched_intents[0]
+        
+        # If found multiple intents, prioritize specific intents over general ones
+        if len(matched_intents) > 1:
+            # Priority order (most specific to most general)
+            priority_order = [
+                'food_recommendation', 'exercise_recommendation',
+                'low_calorie', 'high_protein', 
+                'diet_type', 'health_condition',
+                'weight_loss', 'weight_gain',
+                'water_intake', 'meal_timing', 'vitamins', 'cheat_meal',
+                'nutrition_info', 'goal_setting',
+                'greeting', 'goodbye', 'thanks', 'help',
+                'general'
+            ]
+            
+            # Return the most specific matching intent
+            for intent in priority_order:
+                if intent in matched_intents:
                     return intent
         
         # If no intent is matched, return general intent
@@ -65,10 +92,52 @@ class NutritionChatbot:
         # Convert message to lowercase
         message = message.lower()
         
-        # Check if any food name in our database is mentioned in the message
+        # First, check if this is about a specific food (using common phrase patterns)
+        food_query_patterns = [
+            r'what\'s in (.+)\??',
+            r'nutrients? in (.+)',
+            r'calories in (.+)',
+            r'how (healthy|nutritious) is (.+)\??',
+            r'tell me about (.+) nutrition',
+            r'macros? in (.+)'
+        ]
+        
+        for pattern in food_query_patterns:
+            match = re.search(pattern, message)
+            if match:
+                # Get the food name from the regex match
+                if len(match.groups()) == 1:
+                    food_term = match.group(1).strip()
+                else:
+                    food_term = match.group(2).strip()
+                
+                # Search for this food in our database
+                best_match = None
+                best_score = 0
+                
+                for _, food in self.food_data.iterrows():
+                    food_name = str(food.get('Food Name', '')).lower()
+                    
+                    # Check for exact match
+                    if food_name == food_term:
+                        return food
+                    
+                    # Check for food name contained in the query term
+                    if food_name and food_name in food_term:
+                        # Calculate match score based on length ratio
+                        score = len(food_name) / len(food_term)
+                        if score > best_score:
+                            best_score = score
+                            best_match = food
+                
+                # If we found a reasonable match (at least 50% of the query term)
+                if best_match is not None and best_score > 0.5:
+                    return best_match
+        
+        # Fallback: Check if any food name in our database is directly mentioned
         for _, food in self.food_data.iterrows():
             food_name = str(food.get('Food Name', '')).lower()
-            if food_name and food_name in message:
+            if food_name and food_name in message and len(food_name) > 3:  # Avoid short names that could be common words
                 return food
         
         return None
@@ -83,13 +152,74 @@ class NutritionChatbot:
         # Convert message to lowercase
         message = message.lower()
         
-        # Check if any exercise name in our database is mentioned in the message
+        # First check if the message is asking about exercises for specific muscle groups
+        exercise_query_patterns = [
+            r'exercises? for (my )?(.*?) (muscles?|strength|training)',
+            r'how to (train|work|exercise) (my )?(.*?)( muscles?)?',
+            r'(best|good|recommended|top) (.*?) exercises?',
+            r'(strengthen|tone|build) (my )?(.*?)( muscles?)?',
+            r'what (exercises?|workouts?) (should I do|are good|can I do) for (my )?(.*?)( muscles?)?'
+        ]
+        
+        for pattern in exercise_query_patterns:
+            match = re.search(pattern, message)
+            if match:
+                # Extract the muscle group from the match
+                matched_groups = match.groups()
+                if len(matched_groups) >= 3:
+                    muscle_term = matched_groups[2].strip() if matched_groups[2] else ''
+                    if not muscle_term and len(matched_groups) >= 4:
+                        muscle_term = matched_groups[3].strip() if matched_groups[3] else ''
+                    
+                    if muscle_term:
+                        # Check against known muscle groups
+                        muscle_groups = {
+                            'neck': 'neck', 
+                            'shoulder': 'shoulder', 'shoulders': 'shoulder',
+                            'upper arm': 'upper arms', 'bicep': 'upper arms', 'tricep': 'upper arms',
+                            'biceps': 'upper arms', 'triceps': 'upper arms', 'arm': 'upper arms',
+                            'arms': 'upper arms', 'upper body': 'upper arms',
+                            'forearm': 'forearm', 'forearms': 'forearm', 'wrist': 'forearm',
+                            'back': 'back', 'lats': 'back', 'traps': 'back',
+                            'chest': 'chest', 'pecs': 'chest', 'pectorals': 'chest',
+                            'hip': 'hips', 'hips': 'hips',
+                            'thigh': 'thighs', 'thighs': 'thighs', 'quad': 'thighs',
+                            'quads': 'thighs', 'quadriceps': 'thighs',
+                            'hamstring': 'thighs', 'hamstrings': 'thighs',
+                            'calf': 'calves', 'calves': 'calves', 'lower leg': 'calves',
+                            'waist': 'waist', 'abs': 'waist', 'abdominals': 'waist',
+                            'core': 'waist', 'stomach': 'waist', 'midsection': 'waist',
+                            'glute': 'hips', 'glutes': 'hips', 'butt': 'hips', 'buttocks': 'hips'
+                        }
+                        
+                        normalized_muscle = None
+                        for key, value in muscle_groups.items():
+                            if key in muscle_term:
+                                normalized_muscle = value
+                                break
+                        
+                        if normalized_muscle:
+                            # Return a suitable exercise for this muscle group
+                            matching_exercises = self.exercise_data[
+                                self.exercise_data['Main Muscle'].str.lower().str.contains(normalized_muscle, na=False) |
+                                self.exercise_data['Target Muscles'].str.lower().str.contains(normalized_muscle, na=False)
+                            ]
+                            
+                            if not matching_exercises.empty:
+                                return matching_exercises.sample(1).iloc[0]
+        
+        # Next, check for direct queries about specific exercises
         for _, exercise in self.exercise_data.iterrows():
             exercise_name = str(exercise.get('Exercise', '')).lower()
-            if exercise_name and exercise_name in message:
+            if exercise_name and (
+                exercise_name in message or
+                f"how to do {exercise_name}" in message or
+                f"what is {exercise_name}" in message or
+                f"tell me about {exercise_name}" in message
+            ):
                 return exercise
         
-        # Check if message mentions a specific muscle group
+        # Check if message directly mentions a specific muscle group
         muscle_groups = [
             'neck', 'shoulder', 'upper arms', 'forearm', 'back', 'chest', 
             'hips', 'thighs', 'calves', 'waist', 'abs', 'core', 'glutes',
@@ -99,7 +229,10 @@ class NutritionChatbot:
         for muscle in muscle_groups:
             if muscle in message:
                 # Return a random exercise for this muscle group
-                matching_exercises = self.exercise_data[self.exercise_data['Main Muscle'].str.lower().str.contains(muscle, na=False)]
+                matching_exercises = self.exercise_data[
+                    self.exercise_data['Main Muscle'].str.lower().str.contains(muscle, na=False) |
+                    self.exercise_data['Target Muscles'].str.lower().str.contains(muscle, na=False)
+                ]
                 if not matching_exercises.empty:
                     return matching_exercises.sample(1).iloc[0]
         
