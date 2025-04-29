@@ -3,20 +3,31 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 from utils.data_processing import calculate_bmi, load_user_records
-from utils.user_management import create_new_user, update_user, delete_user, get_user, update_user_progress
+from utils.user_management import update_user, delete_user, get_user, update_user_progress
 from utils.visualization import create_bmi_chart, create_weight_progress_chart
+
+if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
+    st.error("You must log in to access this page.")
+    st.stop()
+
+user_id = st.session_state["current_user"]
 
 def main():
     st.title("📝 User Profile")
     
-    # Check if we're editing an existing profile or creating a new one
-    if st.session_state.current_user:
-        display_existing_profile()
-    else:
-        create_profile()
+    user_data = get_user(user_id)
 
-def display_existing_profile():
-    user_id = st.session_state.current_user
+    if not user_data:
+        st.error(f"User not found.")
+        return
+
+    if user_data.get("profile_complete", False):
+        display_existing_profile(user_data)
+    else:
+        create_profile(user_data)
+
+
+def display_existing_profile(user_data):
     user_data = get_user(user_id)
     
     if not user_data:
@@ -272,9 +283,9 @@ def display_existing_profile():
             if st.button("No, Cancel", key="cancel_delete_button"):
                 st.info("Profile deletion canceled.")
 
-def create_profile():
-    st.subheader("Create New Profile")
-    
+def create_profile(user_data):
+    st.subheader("Complete Your Profile")
+
     with st.form(key="create_profile_form"):
         # Split form into columns for better layout
         col1, col2, col3 = st.columns(3)
@@ -345,32 +356,34 @@ def create_profile():
                 "Any health conditions? (or 'None')"
             )
         
-        submit_button = st.form_submit_button(label="Create Profile")
-        
+        submit_button = st.form_submit_button(label="Save Profile")
+
         if submit_button:
             if not first_name or not last_name:
                 st.error("Please enter both first and last name.")
             else:
-                # Convert allergies string to list
                 allergies_list = [a.strip() for a in allergies.split(',')] if allergies else []
-                
-                success, message, user_id = create_new_user(
-                    first_name, last_name, gender, age, height, weight,
-                    diet_preference, goal, activity_level,
-                    allergies_list, preferred_cuisines, health_conditions
-                )
+
+                updated_data = {
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "gender": gender.lower(),
+                    "age": int(age),
+                    "height": float(height),
+                    "weight": float(weight),
+                    "diet": diet_preference.lower(),
+                    "goal": goal,
+                    "activity_level": activity_level.lower(),
+                    "allergies": allergies_list,
+                    "preferred_cuisines": preferred_cuisines,
+                    "health_conditions": health_conditions,
+                    "profile_complete": True
+                }
+
+                success, message = update_user(user_id, updated_data)
                 
                 if success:
                     st.success(message)
-                    
-                    # Calculate and display BMI
-                    bmi, status = calculate_bmi(weight, height)
-                    st.info(f"Calculated BMI: {bmi}, Status: {status}")
-                    
-                    # Set current user
-                    st.session_state.current_user = user_id
-                    
-                    # Refresh the page to show the profile view
                     st.rerun()
                 else:
                     st.error(message)
