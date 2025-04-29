@@ -3,6 +3,10 @@ import time
 from utils.chatbot import NutritionChatbot
 from utils.user_management import get_user
 
+if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
+    st.error("You must log in to access this page.")
+    st.stop()
+
 def main():
     st.title("💬 Chatbot Assistant")
     
