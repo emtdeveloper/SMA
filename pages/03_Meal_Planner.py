@@ -1,9 +1,14 @@
 import streamlit as st
 import pandas as pd
-from utils.data_processing import load_food_data, filter_foods_by_preference, calculate_calorie_needs, calculate_macros
+from utils.data_processing import load_optimized_meals, filter_foods_by_preference, calculate_calorie_needs, calculate_macros, load_recipe_details
 from utils.recommendations import  recommend_foods_by_goal,generate_meal_plan_with_cosine_similarity
-from utils.user_management import get_user
+from utils.user_management import get_user, update_logged_status
 from utils.visualization import create_macronutrient_chart, create_meal_plan_calories_chart, create_nutrient_comparison_chart
+from utils.user_management import get_meal_plan
+
+if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
+    st.error("You must log in to access this page.")
+    st.stop()
 
 def main():
     st.title("🍽️ Meal Planner")
@@ -15,14 +20,14 @@ def main():
     # Get user data
     user_id = st.session_state.current_user
     user_data = get_user(user_id)
-    
+    if 'optimized_meals' not in st.session_state:
+        st.session_state.optimized_meals = load_optimized_meals()
     if not user_data:
         st.error(f"User profile not found. Please create a new profile.")
         return
-    
-    # Display user info
-    st.subheader(f"Meal Planning for {user_data.get('name', 'User').title()}")
-    
+    st.subheader(f"Meal Planning for {user_data.get('name', 'User').title()}") 
+   
+
     user_col1, user_col2, user_col3 = st.columns(3)
     
     with user_col1:
@@ -51,40 +56,47 @@ def main():
     macro_fig = create_macronutrient_chart(macros)
     st.plotly_chart(macro_fig, use_container_width=True)
     
-    # Meal plan generator form
-    st.subheader("Generate Meal Plan")
-    
-    with st.form(key="meal_plan_form"):
-        col1, col2 = st.columns(2)
-        days = st.slider("Number of Days", min_value=1, max_value=30, value=7)
-        meals_per_day = st.slider("Meals per Day", min_value=3, max_value=6, value=3)
-    
-           
+    latest_meal_plan = get_meal_plan(user_id)
+    if latest_meal_plan:
+        st.subheader("Your Latest Meal Plan")
+        display_meal_plan(user_id,latest_meal_plan)
         
-        generate_button = st.form_submit_button(label="Generate Meal Plan")
-        
-        if generate_button:
-        
-            # Update user data with overrides
-            user_data_copy = user_data.copy()
+    else:
+        st.subheader("No meal plan found. Generate a new one!")
+
+    new_meal_plan = st.checkbox("Generate a New Meal Plan", value=False)
+    if new_meal_plan:
+        st.subheader("Generate a New Meal Plan")    
+        with st.form(key="meal_plan_form"):
+            col1, col2 = st.columns(2)
+            days = st.slider("Number of Days", min_value=1, max_value=30, value=7)
+            meals_per_day=3
             
-            # Generate meal plan
-            with st.spinner("Generating your personalized meal plan..."):
-                st.session_state.current_meal_plan = generate_meal_plan_with_cosine_similarity(
-                    user_data_copy,
-                    st.session_state.food_data,
-                    days=days,
-                    meals_per_day=meals_per_day
-                )
+            
+            generate_button = st.form_submit_button(label="Generate Meal Plan")
+            
+            if generate_button:
+            
+                # Update user data with overrides
+                user_data_copy = user_data.copy()
                 
-    # Display meal plan outside the form
-    if 'current_meal_plan' in st.session_state:
-        meal_plan = st.session_state.current_meal_plan
-        
-        if "error" in meal_plan:
-            st.error(meal_plan["error"])
-        else:
-            display_meal_plan(meal_plan)
+                # Generate meal plan
+                with st.spinner("Generating your personalized meal plan..."):
+                    st.session_state.current_meal_plan = generate_meal_plan_with_cosine_similarity(
+                        user_data_copy,
+                        st.session_state.optimized_meals,
+                        days=days,
+                        meals_per_day=meals_per_day
+                    )
+                    
+        # Display meal plan outside the form
+        if 'current_meal_plan' in st.session_state:
+            meal_plan = st.session_state.current_meal_plan
+            
+            if "error" in meal_plan:
+                st.error(meal_plan["error"])
+            else:
+                display_meal_plan(user_id,meal_plan)
             
             # Add download buttons outside the form and display_meal_plan function
             st.subheader("Save Your Meal Plan")
@@ -124,32 +136,54 @@ def main():
     
     # Food recommendations based on goal
     st.subheader("Recommended Foods Based on Your Goal")
-    
+    if 'recipe_data' not in st.session_state:
+        st.session_state.recipe_data = load_recipe_details()
     with st.spinner("Finding the best foods for your goal..."):
-        recommended_foods = recommend_foods_by_goal(user_data, st.session_state.food_data, num_recommendations=10)
+        recommended_recipes = recommend_foods_by_goal(user_data, st.session_state.recipe_data, num_recommendations=10)
     
-    if recommended_foods:
-        # Display top recommended foods
-        st.markdown(f"Here are some foods that align well with your **{user_data.get('goal', 'goal')}**:")
-        
-        # Create columns for food cards
-        food_cols = st.columns(2)
-        
-        for i, food in enumerate(recommended_foods[:6]):  # Show top 6 foods
-            with food_cols[i % 2]:
+    if recommended_recipes:
+        st.markdown(f"Here are some recipes that align well with your **{user_data.get('goal', 'goal')}**:")
+        recipe_cols = st.columns(2)
+        for i, recipe in enumerate(recommended_recipes[:6]):
+            with recipe_cols[i % 2]:
                 with st.container(border=True):
-                    st.markdown(f"### {food['name']}")
-                    st.markdown(f"**Calories:** {food['calories']:.0f} kcal")
-                    st.markdown(f"**Protein:** {food['protein']:.1f}g")
-                    st.markdown(f"**Carbs:** {food['carbs']:.1f}g")
-                    st.markdown(f"**Fat:** {food['fat']:.1f}g")
-        
-        # Show protein comparison for all recommended foods
+                    st.image(recipe['image_url'], width=150)
+                    st.subheader(recipe['name'])
+                    st.markdown(f"**Calories:** {recipe['calories']:.0f} kcal")
+                    st.markdown(f"**Protein:** {recipe['protein']:.1f} g")
+                    st.markdown(f"**Carbs:** {recipe['carbs']:.1f} g")
+                    st.markdown(f"**Fat:** {recipe['fat']:.1f} g")
+                    # Use expander for details (or st.button + st.session_state for modal)
+                    with st.expander("View Full Recipe Details"):
+                        st.image(recipe['image_url'], width=250)
+                        st.header(recipe['name'])
+                        st.markdown(f"**Category:** {recipe['category']}")
+                        st.markdown(f"**Recipe Info:** {recipe['Recipe Info']}")
+                        st.markdown(f"**Serves:** {recipe['serves']}")
+                        st.markdown(f"**Time:** {recipe['time']}")
+                        st.markdown(f"**Freezable:** {recipe['freezable']}")
+                        st.markdown(f"**Gluten-free:** {recipe['gluten_free']}")
+                        st.markdown(f"**Dairy-free:** {recipe['dairy_free']}")
+                        st.markdown(f"**Calories:** {recipe['calories']:.0f} kcal")
+                        st.markdown(f"**Protein:** {recipe['protein']:.1f} g")
+                        st.markdown(f"**Carbs:** {recipe['carbs']:.1f} g")
+                        st.markdown(f"**Fat:** {recipe['fat']:.1f} g")
+                        st.markdown(f"**Saturates:** {recipe['Saturates_percent']:.1f} g")
+                        st.markdown(f"**Energy:** {recipe['Energy_kcal']} / {recipe['Energy_percent']}")
+                        st.markdown(f"**Fibre:** {recipe['Fibre']} g")
+                        st.markdown(f"**Sugars:** {recipe['Sugars_percent']} g")
+                        st.markdown(f"**Salt:** {recipe['Salt_percent']} g")
+                        st.markdown(f"**Ingredients:**\n{recipe['ingredients']}")
+                        st.markdown(f"**Instructions:**\n{recipe['instructions']}")
+                        if recipe['additional_notes']:
+                            st.markdown(f"**Notes:** {recipe['additional_notes']}")
+                        if recipe['link']:
+                            st.markdown(f"[View Original Recipe Page]({recipe['link']})")
         st.subheader("Protein Content Comparison")
-        protein_fig = create_nutrient_comparison_chart(recommended_foods, "Protein")
+        protein_fig = create_nutrient_comparison_chart(recommended_recipes, "Protein")
         st.plotly_chart(protein_fig, use_container_width=True)
     else:
-        st.info("No food recommendations available. Try updating your profile with more information.")
+        st.info("No recipe recommendations available. Try updating your profile with more information.")
     
     # Search food database
     st.subheader("Food Database Search")
@@ -179,7 +213,7 @@ def main():
             
             st.dataframe(display_df, use_container_width=True)
 
-def display_meal_plan(meal_plan):
+def display_meal_plan(user_id,meal_plan):
     """
     Display the generated meal plan
     """
@@ -238,7 +272,13 @@ def display_meal_plan(meal_plan):
                         st.table(food_df)
                     else:
                         st.info("No foods selected for this meal.")
-    # Meal plan display contains only visualization, no download buttons to avoid form issues
+            if day.get("logged", False):
+                    st.success("This day has been logged.")
+            else:
+                if st.button(f"Mark Day {day['day']} as Logged", key=f"log_day_{day['day']}"):
+                    day["logged"] = True
+                    update_logged_status(user_id, day["day"], True)
+                    st.rerun()    
 
 def convert_plan_to_text(meal_plan):
     """
