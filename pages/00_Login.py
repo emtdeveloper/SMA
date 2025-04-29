@@ -1,5 +1,6 @@
 import streamlit as st
 from utils.user_management import authenticate_user
+from utils.data_processing import log_event
 
 st.set_page_config(
     page_title="Login - Smart Meal Planning",
@@ -104,6 +105,7 @@ with col2:
                 st.session_state["current_user"] = user_id
                 st.session_state["is_admin"] = is_admin
                 st.success(f"Welcome, {username}!")
+                log_event("login", f"User {username} logged in.", user_id)
                 st.switch_page("pages/02_Profile.py")
             else:
                 st.error("Invalid credentials. Please try again.")

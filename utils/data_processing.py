@@ -2,6 +2,38 @@ import pandas as pd
 import json
 import os
 from datetime import datetime
+from utils.db import logs_collection, meals_collection
+
+def load_system_logs(limit=100):
+    try:
+        logs_cursor = logs_collection.find().sort("timestamp", -1).limit(limit)
+        logs = list(logs_cursor)
+        return logs
+    except Exception as e:
+        print(f"Error loading logs: {e}")
+        return []
+    
+def load_user_logs(user_id=None, limit=100):
+    try:
+        query = {}
+        
+        if user_id:
+            query["user_id"] = user_id  # Filter logs where user_id matches
+
+        logs_cursor = meals_collection.find(query).sort("timestamp", -1).limit(limit)
+        logs = list(logs_cursor)
+        return logs
+    except Exception as e:
+        print(f"Error loading user logs: {e}")
+        return []
+    
+def log_event(event_type, message, user_id=None):
+    logs_collection.insert_one({
+        "timestamp": datetime.now(),
+        "type": event_type,
+        "message": message,
+        "user_id": user_id
+    })
 
 def load_food_data():
     """

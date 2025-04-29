@@ -4,7 +4,8 @@ import numpy as np
 import json
 import os
 from datetime import datetime
-from utils.db import connect_to_mongo
+from utils.sidebar import sidebar
+from utils.db import users_collection
 from utils.data_processing import load_food_data, load_exercise_data, load_user_records, load_optimized_meals
 
 # Set page configuration
@@ -25,11 +26,6 @@ hide_streamlit_style = """
             </style>
             """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
-
-# Connect to MongoDB
-client = connect_to_mongo()
-db = client["smart-meals-database"]
-users_collection = db["users"]
 
 # Initialize session state variables if they don't exist
 if 'food_data' not in st.session_state:
@@ -178,46 +174,7 @@ def main():
     
     st.info(f"💡 **Tip of the Day:** {np.random.choice(health_tips)}")
 
-def sidebar():
-    st.sidebar.title("Navigation")
-    
-    # Check login status
-    if st.session_state.get("logged_in", False):
-        st.sidebar.success(f"Logged in as {st.session_state.get('username', 'Unknown')}")
-        
-        if st.sidebar.button("Log Out"):
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.rerun()
-    else:
-        st.sidebar.info("Please log in or sign up to use features.")
-    
-    st.sidebar.subheader("Features")
-    
-    features = {
-        "🏠 Home": "app.py",
-        "📝 Profile": "pages/01_Profile.py",
-        "🍽️ Meal Planner": "pages/03_Meal_Planner.py",
-        "🏋️ Exercise Recommendations": "pages/04_Exercise_Recommendations.py",
-        "💬 Chatbot Assistant": "pages/05_Chatbot.py",
-        "📈 Progress Tracking": "pages/06_Progress_Tracking.py"
-    }
-    
-    for feature_name, feature_page in features.items():
-        if st.sidebar.button(feature_name, use_container_width=True):
-            if st.session_state.get("logged_in", False):
-                st.switch_page(feature_page)
-            else:
-                st.error("Please log in to access this feature.")
-    
-    st.sidebar.markdown("---")
-    st.sidebar.info(
-        "Smart Meal Planning & Health Assistant\n\n"
-        "An AI-powered application for personalized nutrition and exercise guidance."
-    )
-
-
 # Run the app
 if __name__ == "__main__":
-    sidebar()
+    sidebar(current_page="🏠 Home")
     main()

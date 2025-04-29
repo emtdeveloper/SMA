@@ -1,13 +1,8 @@
 import bcrypt
 from pymongo import MongoClient
 from bson.objectid import ObjectId #type: ignore
-from utils.db import connect_to_mongo
+from utils.db import users_collection
 from datetime import datetime
-
-# MongoDB connection
-client = connect_to_mongo()
-db = client["smart-meals-database"]
-users_collection = db["users"]
 
 def authenticate_user(username, password):
     user = users_collection.find_one({"username": username})

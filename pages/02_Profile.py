@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime
+from utils.sidebar import sidebar
 from utils.data_processing import calculate_bmi, load_user_records
 from utils.user_management import update_user, delete_user, get_user, update_user_progress
 from utils.visualization import create_bmi_chart, create_weight_progress_chart
@@ -12,8 +13,20 @@ if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
 
 user_id = st.session_state["current_user"]
 
+# Hide Streamlit default elements
+hide_streamlit_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            [data-testid="stSidebarNav"] {display: none;}
+            </style>
+            """
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 def main():
     st.title("📝 User Profile")
+    sidebar(current_page="📝 Profile")
     
     user_data = get_user(user_id)
 

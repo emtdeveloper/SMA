@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from utils.sidebar import sidebar
 from utils.data_processing import load_food_data, filter_foods_by_preference, calculate_calorie_needs, calculate_macros
 from utils.recommendations import  recommend_foods_by_goal,generate_meal_plan_with_cosine_similarity
 from utils.user_management import get_user
@@ -9,8 +10,20 @@ if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
     st.error("You must log in to access this page.")
     st.stop()
 
+# Hide Streamlit default elements
+hide_streamlit_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            [data-testid="stSidebarNav"] {display: none;}
+            </style>
+            """
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 def main():
     st.title("🍽️ Meal Planner")
+    sidebar(current_page="🍽️ Meal Planner")
     
     # Check if user is logged in
     if 'current_user' not in st.session_state or st.session_state.current_user is None:

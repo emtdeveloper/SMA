@@ -4,6 +4,7 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+from utils.sidebar import sidebar
 from utils.user_management import get_user, update_user_progress
 from utils.visualization import create_weight_progress_chart, create_bmi_chart
 
@@ -11,8 +12,20 @@ if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
     st.error("You must log in to access this page.")
     st.stop()
 
+# Hide Streamlit default elements
+hide_streamlit_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            [data-testid="stSidebarNav"] {display: none;}
+            </style>
+            """
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 def main():
     st.title("📈 Progress Tracking")
+    sidebar(current_page="📈 Progress Tracking")
     
     # Check if user is logged in
     if not st.session_state.current_user:

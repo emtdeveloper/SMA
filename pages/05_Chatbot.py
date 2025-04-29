@@ -1,5 +1,6 @@
 import streamlit as st
 import time
+from utils.sidebar import sidebar
 from utils.chatbot import NutritionChatbot
 from utils.user_management import get_user
 
@@ -7,8 +8,20 @@ if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
     st.error("You must log in to access this page.")
     st.stop()
 
+# Hide Streamlit default elements
+hide_streamlit_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            [data-testid="stSidebarNav"] {display: none;}
+            </style>
+            """
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 def main():
     st.title("💬 Chatbot Assistant")
+    sidebar(current_page="💬 Chatbot Assistant")
     
     # Initialize chat history in session state if it doesn't exist
     if 'chat_history' not in st.session_state:
