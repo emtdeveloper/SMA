@@ -254,11 +254,27 @@ def filter_recipes_by_allergies_and_cuisines(recipes_df, allergies=None, preferr
         
         # Only apply filter if we have valid allergies
         if allergies:
-            # Use vectorized operations where possible
-            filtered_df = filtered_df[~filtered_df['ingredients'].apply(
-                lambda ingredients: any(any(allergen in ingredient.lower() for ingredient in ingredients) 
-                                      for allergen in allergies)
-            )]
+            print(f"Filtering recipes for allergies: {allergies}")
+            allergies = [allergen.lower() for allergen in allergies]
+
+            filtered_df = filtered_df[
+                ~(
+                    filtered_df['ingredients'].apply(
+                        lambda ingredients: any(
+                            allergen in ingredient.lower()
+                            for ingredient in ingredients
+                            for allergen in allergies
+                        )
+                    ) |
+                    filtered_df['name'].str.lower().apply(
+                        lambda name: any(
+                            allergen == word
+                            for word in name.split()
+                            for allergen in allergies
+                        )
+                    )
+                )
+            ]
     
     # Filter by cuisines if provided
     if preferred_cuisines and len(preferred_cuisines) > 0:
@@ -274,3 +290,15 @@ def filter_recipes_by_allergies_and_cuisines(recipes_df, allergies=None, preferr
             )]
     
     return filtered_df
+
+def load_recipe_details():
+    """
+    Load the recipe_details.csv dataset
+    """
+    try:
+        recipe_details = pd.read_csv('attached_assets/recipe_details.csv')
+        recipe_details.columns = recipe_details.columns.str.strip()
+        return recipe_details
+    except Exception as e:
+        print(f"Error loading recipe details: {e}")
+        return pd.DataFrame()
