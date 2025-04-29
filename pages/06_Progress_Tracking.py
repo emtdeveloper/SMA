@@ -7,6 +7,10 @@ from datetime import datetime, timedelta
 from utils.user_management import get_user, update_user_progress
 from utils.visualization import create_weight_progress_chart, create_bmi_chart
 
+if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
+    st.error("You must log in to access this page.")
+    st.stop()
+
 def main():
     st.title("📈 Progress Tracking")
     
@@ -15,21 +19,19 @@ def main():
         st.warning("Please create or select a profile to track your progress.")
         st.info("Go to the Profile page to create or select a profile.")
         
-        # Show demo version with limited functionality
-        st.subheader("Demo Version")
-        display_demo_progress()
-        return
+    
     
     # Get user data
-    user_id = st.session_state.current_user
+    user_id = st.session_state["current_user"]
     user_data = get_user(user_id)
+
     
     if not user_data:
         st.error(f"User profile not found. Please create a new profile.")
         return
     
     # Display user info
-    st.subheader(f"Progress Tracking for {user_data.get('name', 'User').title()}")
+    st.subheader(f"🌞 Greetings, {user_data.get('username', 'User').title()}")
     
     # Overview metrics
     display_overview_metrics(user_data)
@@ -504,56 +506,6 @@ def display_full_history(user_data):
         mime="text/csv"
     )
 
-def display_demo_progress():
-    """
-    Display demo progress tracking for non-logged in users
-    """
-    # Create sample data
-    start_date = datetime.now() - timedelta(days=60)
-    dates = [start_date + timedelta(days=i*5) for i in range(13)]
-    
-    # Create weight pattern with some variation (starting at 80kg with overall downward trend)
-    weights = [80 - (i*0.4) + np.random.uniform(-0.3, 0.3) for i in range(13)]
-    
-    # Calculate BMI values (assuming height of 175cm)
-    height_m = 1.75
-    bmis = [w / (height_m ** 2) for w in weights]
-    
-    # Create progress history
-    progress_history = [
-        {
-            'timestamp': date.strftime("%Y-%m-%d %H:%M:%S"),
-            'weight': weight,
-            'bmi': bmi
-        }
-        for date, weight, bmi in zip(dates, weights, bmis)
-    ]
-    
-    # Create user data
-    user_data = {
-        'name': 'Demo User',
-        'weight': weights[-1],
-        'height': 175,
-        'bmi': bmis[-1],
-        'health_status': 'Healthy',
-        'goal': 'Weight Loss',
-        'progress_history': progress_history
-    }
-    
-    # Display metrics
-    display_overview_metrics(user_data)
-    
-    # Display charts
-    display_progress_charts(user_data)
-    
-    # Display goal tracking
-    display_goal_tracking(user_data)
-    
-    # Display full history
-    display_full_history(user_data)
-    
-    # Add demo disclaimer
-    st.info("This is a demo view with sample data. Create a profile to track your own progress!")
 
 if __name__ == "__main__":
     main()
