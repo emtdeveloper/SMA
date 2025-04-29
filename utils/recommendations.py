@@ -6,6 +6,7 @@ from utils.data_processing import calculate_calorie_needs, calculate_macros, fil
 import logging
 from sklearn.preprocessing import MinMaxScaler
 from utils.data_processing import filter_recipes_by_allergies_and_cuisines,load_optimized_meals
+from utils.user_management import save_meal_plan
 
 
 def generate_meal_plan_with_cosine_similarity(user_data, recipes_df, days,meals_per_day):
@@ -35,7 +36,7 @@ def generate_meal_plan_with_cosine_similarity(user_data, recipes_df, days,meals_
 
     # Adjust calories for goals
    
-    macros_needed = calculate_macros(2000, goal)    
+    macros_needed = calculate_macros(calories_needed, goal)    
 
    
     carbs_goal = macros_needed['carbs']
@@ -54,7 +55,6 @@ def generate_meal_plan_with_cosine_similarity(user_data, recipes_df, days,meals_
     preferred_cuisines = user_data.get('preferred_cuisines', [])
     logging.info(f"Filtering recipes with allergies={allergies} and cuisines={preferred_cuisines}")
     filtered_df = filter_recipes_by_allergies_and_cuisines(recipes_df, allergies, preferred_cuisines)
-    
     if filtered_df.empty:
         return {"error": "No recipes available that match your preferences. Try adjusting filters."}
      
@@ -95,7 +95,8 @@ def generate_meal_plan_with_cosine_similarity(user_data, recipes_df, days,meals_
     for day in range(1, days + 1):
         day_plan = {
             "day": day,
-            "meals": []
+            "meals": [],
+            "logged": False 
         }
 
         total_calories = total_protein = total_carbs = total_fat = 0
@@ -191,7 +192,9 @@ def generate_meal_plan_with_cosine_similarity(user_data, recipes_df, days,meals_
         })
 
         meal_plan['days'].append(day_plan)
-
+    user_id = user_data.get("_id")  # Ensure user_data contains the MongoDB user ID
+    if user_id:
+        save_meal_plan(user_id, meal_plan)
         
         
     return meal_plan
@@ -219,90 +222,96 @@ def get_meal_name(meal_number, total_meals):
         else:
             return f"Afternoon Meal {meal_number}"
 
-def recommend_foods_by_goal(user_data, food_data, num_recommendations=10):
+def recommend_foods_by_goal(user_data, recipe_data, num_recommendations=10):
     """
-    Recommend foods based on user's fitness goal
+    Recommend recipes based on user's fitness goal using recipe_details.csv columns
     
     Parameters:
     - user_data: Dict containing user information
-    - food_data: DataFrame with food nutrition data
-    - num_recommendations: Number of foods to recommend
+    - recipe_data: DataFrame with recipe nutrition data
+    - num_recommendations: Number of recipes to recommend
     
     Returns:
-    - List of recommended foods
+    - List of recommended recipes (dicts with name, calories, protein, carbs, fat, image_url, and link)
     """
-    # Filter foods based on dietary preference
-    filtered_foods = filter_foods_by_preference(food_data, user_data.get('diet', 'both'))
-    
-    if filtered_foods.empty:
+    # No dietary filtering for now (can be added if needed)
+    filtered_recipes = recipe_data.copy()
+    if filtered_recipes.empty:
         return []
-    
+
+    # Remove any non-numeric characters (like 'g', '%', etc.)
+    unit_cols = ['Protein', 'Fibre', 'Fat_percent', 'Carbs', 'Sugars_percent','Salt_percent','Saturates_percent']
+    for col in unit_cols:
+        if col in filtered_recipes.columns:
+            filtered_recipes[col] = (
+                filtered_recipes[col]
+                .astype(str)
+                .str.replace(r'[^0-9.]+', '', regex=True)
+            )
+            filtered_recipes[col] = pd.to_numeric(filtered_recipes[col], errors='coerce').fillna(0)
+
     goal = user_data.get('goal', '').lower()
-    
-    # Assign scores to each food based on goal
     scores = []
-    
-    for _, food in filtered_foods.iterrows():
+    for _, recipe in filtered_recipes.iterrows():
         score = 0
-        
-        # Skip foods with missing data
-        if pd.isna(food.get('Calories', 0)) or food.get('Calories', 0) <= 0:
-            scores.append(-1)  # Low score for foods with missing data
+        # Skip recipes with missing data
+        if pd.isna(recipe.get('Calories', 0)) or recipe.get('Calories', 0) <= 0:
+            scores.append(-1)
             continue
-        
-        # Weight Loss: Favor foods with high protein, low calories, high fiber
+        # Weight Loss: Favor high protein, low calories, high fibre
         if 'weight loss' in goal:
-            protein_per_calorie = food.get('Protein', 0) / max(food.get('Calories', 1), 1)
-            fiber_per_calorie = food.get('Dietary Fiber', 0) / max(food.get('Calories', 1), 1)
-            
-            score = (protein_per_calorie * 5) + (fiber_per_calorie * 3) - (food.get('Sugar', 0) * 0.1)
-        
-        # Weight Gain: Favor foods with high calories, balanced macros
+            protein_per_calorie = recipe.get('Protein', 0) / max(recipe.get('Calories', 1), 1)
+            fibre_per_calorie = recipe.get('Fibre', 0) / max(recipe.get('Calories', 1), 1)
+            score = (protein_per_calorie * 5) + (fibre_per_calorie * 3) - (recipe.get('Sugars_percent', 0) * 0.1)
+        # Weight Gain: Favor high calories, balanced macros
         elif 'weight gain' in goal:
-            calorie_density = food.get('Calories', 0) / 100  # per 100g
-            protein_ratio = food.get('Protein', 0) / max(food.get('Calories', 1), 1)
-            
+            calorie_density = recipe.get('Calories', 0) / 100
+            protein_ratio = recipe.get('Protein', 0) / max(recipe.get('Calories', 1), 1)
             score = (calorie_density * 3) + (protein_ratio * 2)
-        
-        # Muscle Gain: Favor foods high in protein and moderate calories
+        # Muscle Gain: Favor high protein and moderate calories
         elif 'muscle gain' in goal:
-            protein_content = food.get('Protein', 0)
-            protein_ratio = protein_content / max(food.get('Calories', 1), 1)
-            
+            protein_content = recipe.get('Protein', 0)
+            protein_ratio = protein_content / max(recipe.get('Calories', 1), 1)
             score = (protein_content * 2) + (protein_ratio * 5)
-        
-        # Maintain Weight: Favor balanced, nutrient-dense foods
+        # Maintain Weight: Favor balanced, nutrient-dense recipes
         else:
             nutrition_density = (
-                food.get('Protein', 0) +
-                food.get('Dietary Fiber', 0) * 2 +
-                (food.get('Nutrition Density', 0) / 100)
-            ) / max(food.get('Calories', 1), 1)
-            
+                recipe.get('Protein', 0) +
+                recipe.get('Fibre', 0) * 2
+            ) / max(recipe.get('Calories', 1), 1)
             score = nutrition_density * 5
-        
         scores.append(score)
-    
-    # Add scores to the dataframe
-    filtered_foods_with_scores = filtered_foods.copy()
-    filtered_foods_with_scores['score'] = scores
-    
-    # Sort by score and get top recommendations
-    top_recommendations = filtered_foods_with_scores.sort_values('score', ascending=False).head(num_recommendations)
-    
-    # Convert to list of dictionaries
+    filtered_recipes_with_scores = filtered_recipes.copy()
+    filtered_recipes_with_scores['score'] = scores
+    top_recommendations = filtered_recipes_with_scores.sort_values('score', ascending=False).head(num_recommendations)
     recommendations = []
-    for _, food in top_recommendations.iterrows():
-        if food.get('score', 0) > 0:  # Only include foods with positive scores
+    for _, recipe in top_recommendations.iterrows():
+        if recipe.get('score', 0) > 0:
             recommendations.append({
-                "name": food.get('Food Name', 'Unknown Food'),
-                "calories": food.get('Calories', 0),
-                "protein": food.get('Protein', 0),
-                "carbs": food.get('Carbs', 0),
-                "fat": food.get('Total Fat', 0),
-                "score": food.get('score', 0)
+                "name": recipe.get('Product Name', 'Unknown Recipe'),
+                "calories": recipe.get('Calories', 0),
+                "protein": recipe.get('Protein', 0),
+                "carbs": recipe.get('Carbs', 0),
+                "fat": recipe.get('Fat_percent', 0),
+                "image_url": recipe.get('Image URL', ''),
+                "link": recipe.get('Link', ''),
+                "ingredients": recipe.get('Ingredients', ''),
+                "serves": recipe.get('Serves', ''),
+                "time": recipe.get('Time', ''),
+                "freezable": recipe.get('Freezable', ''),
+                "gluten_free": recipe.get('Gluten-free', ''),
+                "dairy_free": recipe.get('Dairy-free', ''),
+                "instructions": recipe.get('Instructions', ''),
+                "additional_notes": recipe.get('Additional Notes', ''),
+                "category": recipe.get('Category Title', ''),
+                "Energy_percent": recipe.get('Energy_percent', ''),
+                "Energy_kcal": recipe.get('Energy_kcal', ''),
+                "Fibre": recipe.get('Fibre', ''),
+                "Sugars_percent": recipe.get('Sugars_percent', ''),
+                "Salt_percent": recipe.get('Salt_percent', ''),
+                "Saturates_percent": recipe.get('Saturates_percent', ''),
+                "Recipe Info": recipe.get('Recipe Info', ''),
             })
-    
     return recommendations
 
 def recommend_exercises(user_data, exercise_data, num_recommendations=5):
