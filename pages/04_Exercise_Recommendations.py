@@ -5,6 +5,10 @@ from utils.recommendations import recommend_exercises
 from utils.user_management import get_user
 from utils.visualization import create_exercise_distribution_chart
 
+if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
+    st.error("You must log in to access this page.")
+    st.stop()
+
 def main():
     st.title("🏋️ Exercise Recommendations")
     
